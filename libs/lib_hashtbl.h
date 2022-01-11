@@ -301,7 +301,7 @@ extern int libHashWalk(HashRoot_t *pTable, HashWalkCallback_t callback_fn, void 
 typedef void (*HashDumpCallback_t)(void* pDmpPtr, int hashIndex, const HashPrimitive_t *pHashEntry);
 extern void libHashDump(HashRoot_t *pTable, HashDumpCallback_t callback_fn, void *pDmpPtr);
 
-/** libHashTableLock - lock the hash table.
+/** libHashLock - lock the hash table.
  *
  * At entry:
  * @param pTable - pointer to hash table
@@ -312,7 +312,7 @@ extern void libHashDump(HashRoot_t *pTable, HashDumpCallback_t callback_fn, void
  **/
 extern HashErrors_t libHashLock(HashRoot_t *pTable);
 
-/** hashTableUnlock - unlock the hash table.
+/** libHashUnlock - unlock the hash table.
  *
  * At entry:
  * @param pTable - pointer to hash table

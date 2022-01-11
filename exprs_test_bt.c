@@ -204,7 +204,10 @@ static void freeEntry(void *freeArg, void *pEntry)
 static void lclShow(void *msgArg, ExprsMsgSeverity_t severity, const char *msg)
 {
 	static const char *Banners[] = {"INFO","WARN","ERROR","FATAL"};
-	fprintf(severity > EXPRS_SEVERITY_INFO ? stderr : stdout,"%s%s:%s", msgArg ? (const char *)msgArg : "", Banners[severity], msg);
+	fprintf(severity > EXPRS_SEVERITY_INFO ? stderr : stdout,"%s%s: %s",
+			Banners[severity],
+			msgArg ? (const char *)msgArg : "",
+			msg);
 }
 
 /**
@@ -417,6 +420,7 @@ int exprsTestBtree(int btreeSize, const char *expression, int verbose)
 	ourCallbacks.memFree = lclFree;
 	ourCallbacks.memArg = &memStats;
 	ourCallbacks.msgOut = lclShow;
+	ourCallbacks.msgArg = "-libBtree()";
 	memset(&btCallbacks,0,sizeof(BtreeCallbacks_t));
 	btCallbacks.memAlloc = lclAlloc;
 	btCallbacks.memFree = lclFree;

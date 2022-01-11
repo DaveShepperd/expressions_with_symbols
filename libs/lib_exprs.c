@@ -1952,18 +1952,14 @@ const char *libExprsGetErrorStr(ExprsErrs_t errCode)
 
 ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm)
 {
-	ExprsErrs_t err=EXPR_TERM_BAD_SYNTAX;
+	ExprsErrs_t err=EXPR_TERM_BAD_SYNTAX,err2;
 	char eBuf[512];
 	int len;
 	
 	if ( !exprs || !returnTerm )
 		return EXPR_TERM_BAD_PARAMETER;
-	if ( pthread_mutex_lock(&exprs->mMutex) )
-	{
-		snprintf(eBuf,sizeof(eBuf),"Failed to lock pthread mutex: %s\n", strerror(errno));
-		exprs->mCallbacks.msgOut(exprs->mCallbacks.msgArg,EXPRS_SEVERITY_ERROR,eBuf);
-		return EXPR_TERM_BAD_NOLOCK;
-	}
+	if ( (err2=libExprsLock(exprs)) )
+		return err2;
 	returnTerm->termType = EXPRS_TERM_NULL;
 	returnTerm->term.s64 = 0;
 	returnTerm->chrPtr = NULL;
@@ -2005,7 +2001,7 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 					else if ( exprs->mVerbose )
 					{
 						dumpStacks(exprs);
-						snprintf(eBuf,sizeof(eBuf),"The resulting RPN expression for the given expression:\n");
+						snprintf(eBuf,sizeof(eBuf),"The resulting term after computing RPN expression:\n");
 						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 						switch (returnTerm->termType)
 						{
@@ -2053,14 +2049,14 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 				break;
 		}
 	}
-	pthread_mutex_unlock(&exprs->mMutex);
-	return err;
+	err2 = libExprsUnlock(exprs);
+	return err ? err : err2;
 }
 
 static void lclMsgOut(void *msgArg, ExprsMsgSeverity_t severity, const char *msg)
 {
 	static const char *Severities[] = { "INFO", "WARN", "ERROR", "FATAL" };
-	fprintf(severity > EXPRS_SEVERITY_INFO ? stderr:stdout,"%s-libExprs: %s",Severities[severity],msg);
+	fprintf(severity > EXPRS_SEVERITY_INFO ? stderr:stdout,"%s-libExprs(): %s",Severities[severity],msg);
 }
 
 static void *lclMalloc(void *memArg, size_t size)
@@ -2213,12 +2209,13 @@ ExprsDef_t* libExprsInit(const ExprsCallbacks_t *callbacks, int maxStacks, int m
 	return exprs;
 }
 
-void libExprsDestroy(ExprsDef_t *exprs)
+ExprsErrs_t libExprsDestroy(ExprsDef_t *exprs)
 {
+	ExprsErrs_t err;
 	void (*memFree)(void *memArg, void *memPtr) = exprs->mCallbacks.memFree;
 	void *pArg = exprs->mCallbacks.memArg;
 	
-	pthread_mutex_lock(&exprs->mMutex);
+	err = libExprsLock(exprs);
 	if ( exprs->mStringPool )
 		memFree(pArg, exprs->mStringPool);
 	if ( exprs->mOpersPool )
@@ -2230,5 +2227,36 @@ void libExprsDestroy(ExprsDef_t *exprs)
 	pthread_mutex_unlock(&exprs->mMutex);
 	pthread_mutex_destroy(&exprs->mMutex);
 	memFree(pArg, exprs);
+	return err;
+}
+
+ExprsErrs_t libExprsLock(ExprsDef_t *exprs)
+{
+	if ( pthread_mutex_lock(&exprs->mMutex) )
+	{
+		if ( exprs->mVerbose )
+		{
+			char emsg[128];
+			snprintf(emsg,sizeof(emsg),"Failed to lock: %s\n", strerror(errno));
+			exprs->mCallbacks.msgOut(exprs->mCallbacks.msgArg,EXPRS_SEVERITY_ERROR,emsg);
+		}
+		return EXPR_TERM_BAD_NOLOCK;
+	}
+	return EXPR_TERM_GOOD;
+}
+
+ExprsErrs_t libExprsUnlock(ExprsDef_t *exprs)
+{
+	if ( pthread_mutex_unlock(&exprs->mMutex) )
+	{
+		if ( exprs->mVerbose )
+		{
+			char emsg[128];
+			snprintf(emsg,sizeof(emsg),"Failed to unlock: %s\n", strerror(errno));
+			exprs->mCallbacks.msgOut(exprs->mCallbacks.msgArg,EXPRS_SEVERITY_ERROR,emsg);
+		}
+		return EXPR_TERM_BAD_NOUNLOCK;
+	}
+	return EXPR_TERM_GOOD;
 }
 

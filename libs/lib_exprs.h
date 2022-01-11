@@ -165,8 +165,8 @@ typedef enum
 	EXPR_TERM_BAD_LVALUE,
 	EXPR_TERM_BAD_RVALUE,
 	EXPR_TERM_BAD_PARAMETER,
-	EXPR_TERM_BAD_NOLOCK,
-	EXPR_TERM_BAD_NOUNLOCK
+	EXPR_TERM_BAD_NOLOCK,		/*! error doing pthread lock. See errno for additional error. */
+	EXPR_TERM_BAD_NOUNLOCK		/*! error doing pthread unlock. See errno for additional error. */
 } ExprsErrs_t;
 
 /** ExprsSymTermTypes_t - definition of the subset of types
@@ -292,10 +292,11 @@ extern ExprsDef_t *libExprsInit(const ExprsCallbacks_t *callbacks, int maxStacks
  *  			 libExprsInit.
  *
  *  At exit:
- *  @return nothing. All the memory allocated for use by the
- *  		parser has been freed.
+ *  @return 0 on success, non-zero on error. All the memory
+ *  		allocated for use by the parser has been freed. See
+ *  		errno for additional error information.
  **/
-extern void libExprsDestroy(ExprsDef_t *exprs);
+extern ExprsErrs_t libExprsDestroy(ExprsDef_t *exprs);
 
 /** libExprsSetCallbacks - Alter the list of callbacks in use
  *  by the expression parser.
@@ -358,5 +359,27 @@ extern const char *libExprsGetErrorStr(ExprsErrs_t errCode);
  *  		complex.
  **/
 extern ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm);
+
+/** libExprsLock - lock the hash table.
+ *
+ * At entry:
+ * @param pTable - pointer to hash table
+ *
+ * At exit:
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
+ **/
+extern ExprsErrs_t libExprsLock(ExprsDef_t *pTable);
+
+/** libExprsUnlock - unlock the hash table.
+ *
+ * At entry:
+ * @param pTable - pointer to hash table
+ *
+ * At exit:
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
+ **/
+extern ExprsErrs_t  libExprsUnlock(ExprsDef_t *pTable);
 
 #endif	/* _LIB_EXPRS_H_ */
