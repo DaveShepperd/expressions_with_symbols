@@ -45,14 +45,14 @@ typedef struct HashPrimitive_t
 
 typedef enum
 {
-	HashSuccess,
-	HashInvalidParam,
-	HashNoSuchSymbol,
-	HashDuplicateSymbol,
-	HashOutOfMemory,
-	HashEndOfTable,
-	HashNoLock,
-	HashNoUnLock,
+	HashSuccess,		/*! No error */
+	HashInvalidParam,	/*! Invalid parameter passed to function */
+	HashNoSuchSymbol,	/*! No symbol found */
+	HashDuplicateSymbol,/*! Cannot add duplicate symbol */
+	HashOutOfMemory,	/*! Ran out of memory */
+	HashEndOfTable,		/*! Reached end of symbol table */
+	HashNoLock,			/*! pthread lock error. Look at errno for additional error code */
+	HashNoUnLock,		/*! pthread unlock error. Look at errno for additional error code */
 	HashMaxError
 } HashErrors_t;
 
@@ -105,6 +105,8 @@ typedef struct
 	int (*symCmp)(void *symArg, const HashEntry_t aa,const HashEntry_t bb);		/*! pointer to function to perform compare */
 	void *symArg;									/*! Argument that will be passed to symHash() and symCmp() */
 } HashCallbacks_t;
+
+#define HASHTBL_VERBOSE_ERROR (0x01)	/*! set this flag in verbose to emit error messages directly */
 
 /** HashRoot_t - the principal structure containing all the
  *  details of the hash table. With the exception of pUser1 and
@@ -161,7 +163,9 @@ extern HashRoot_t* libHashInit(int tableSize, const HashCallbacks_t *callbacks )
  *  			   the hash entry.
  *
  *  At Exit:
- *  @return nothing. All allocated memory will have been freed.
+ *  @return 0 on success and all allocated memory will have been
+ *  		freed. Else error then look in errno for further
+ *  		information about error.
  *
  *  @note If the entry_free_fn parameter is provided it will be
  *  	  called for each member in the hash table with the
@@ -170,7 +174,7 @@ extern HashRoot_t* libHashInit(int tableSize, const HashCallbacks_t *callbacks )
  *  	  member is expected to be free'd and its entry nulled
  *  	  out.
  **/
-extern void libHashDestroy(HashRoot_t *pTable, void (*entry_free_fn)(void *freeArg, HashEntry_t entry), void *freeArg);
+extern HashErrors_t libHashDestroy(HashRoot_t *pTable, void (*entry_free_fn)(void *freeArg, HashEntry_t entry), void *freeArg);
 
 /** libHashInsert - insert item into hash table.
  *
@@ -303,7 +307,8 @@ extern void libHashDump(HashRoot_t *pTable, HashDumpCallback_t callback_fn, void
  * @param pTable - pointer to hash table
  *
  * At exit:
- * @return 0 on success else error code.
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
  **/
 extern HashErrors_t libHashLock(HashRoot_t *pTable);
 
@@ -313,7 +318,8 @@ extern HashErrors_t libHashLock(HashRoot_t *pTable);
  * @param pTable - pointer to hash table
  *
  * At exit:
- * @return 0 on success else error code.
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
  **/
 extern HashErrors_t  libHashUnlock(HashRoot_t *pTable);
 

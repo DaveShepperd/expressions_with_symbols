@@ -392,12 +392,12 @@ static ExprsErrs_t setBtreeSym(void *symArg, const char *name, const ExprsSymTer
 		ent->value.term.s64 = value->term.s64;
 		break;
 	default:
-		freeEntry(pMemStats,(BtreeEntry_t)ent);
+		freeEntry(pMemStats,ent);
 		return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 	}
 	if ( !libBtreeInsert(pTable,(const BtreeEntry_t)ent) )
 		return EXPR_TERM_GOOD;
-	freeEntry(pMemStats,(BtreeEntry_t)ent);
+	freeEntry(pMemStats,ent);
 	return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 }
 

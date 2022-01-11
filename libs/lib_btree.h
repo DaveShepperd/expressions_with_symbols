@@ -43,15 +43,15 @@ typedef struct BtreeNode_t
 
 typedef enum
 {
-	BtreeSuccess,
-	BtreeInvalidParam,
-	BtreeNoSuchSymbol,
-	BtreeDuplicateSymbol,
-	BtreeOutOfMemory,
-	BtreeEndOfTable,
-	BtreeNotSupported,
-	BtreeLockFail,
-	BtreeMaxError
+	BtreeSuccess,			/*! No error */
+	BtreeInvalidParam,		/*! Invalid parameter passed to function */
+	BtreeNoSuchSymbol,		/*! No symbol found */
+	BtreeDuplicateSymbol,	/*! Duplicate symbol found */
+	BtreeOutOfMemory,		/*! Ran out of memory */
+	BtreeEndOfTable,		/*! Reached end of symbol table */
+	BtreeNotSupported,		/*! Function not yet supported */
+	BtreeLockFail,			/*! pthread lock failed. Look at errno for actual error */
+	BtreeMaxError			/*! pthread unlock failed. Look at errno for actual error */
 } BtreeErrors_t;
 
 /** BtreeMsgSeverity_t - define the severity of messages
@@ -97,14 +97,18 @@ typedef struct
 	void *symArg;									/*! Argument that will be passed to symCmp() */
 } BtreeCallbacks_t;
 
-/** BtreeRoot_t - the principal structure containing all the
- *  details of the btree table. With the exception of pUser1 and
- *  pUser2, user code ought not alter any of the entries in this
- *  structure directly.
+#define BTREE_VERBOSE_ERROR (0x01)	/*! set this flag in verbose to emit error messages directly */
+
+/**
+ * BtreeControl_t - the principal structure containing all the
+ * details of the btree table. With the exception of pUser1, 
+ * pUser2 and verbose user code ought not alter any of the
+ * entries in this structure directly.
  **/
 typedef struct BtreeControl_t
 {
 	pthread_mutex_t lock;		/*! thread locker */
+	int verbose;				/*! verbose flags */
 	BtreeCallbacks_t callbacks;	/*! Pointers to various callback functions */
 	int numEntries;				/*! number of active entries in the hash table (table itself + any chains) */
 	BtreeNode_t *root;			/*! root of the btree */
@@ -131,7 +135,8 @@ extern const char *libBtreeErrorString(BtreeErrors_t error);
  *  At exit:
  *  @return pointer to BtreeControl_t struct which holds details
  *  		of the btree table for further access or NULL if the
- *  		init could not be performed.
+ *  		init could not be performed. Possibly errno might
+ *  		have further details for reason of any failure.
  *
  *  @note This BST uses the AVL method of keeping the tree
  *  	  balanced. The balance factor bits are stored in the
@@ -265,7 +270,8 @@ extern int libBtreeWalk(BtreeControl_t *pTable, BtreeOrders_t order, BtreeWalkCa
  * @param pTable - pointer to btree table
  *
  * At exit:
- * @return 0 on success else error code.
+ * @return 0 on success else error code. Look in errno for
+ *  	   further error indication.
  **/
 extern BtreeErrors_t libBtreeLock(BtreeControl_t *pTable);
 
@@ -275,7 +281,8 @@ extern BtreeErrors_t libBtreeLock(BtreeControl_t *pTable);
  * @param pTable - pointer to btree table
  *
  * At exit:
- * @return 0 on success else error code.
+ * @return 0 on success else error code. Look in errno for
+ *  	   further error indication.
  **/
 extern BtreeErrors_t  libBtreeUnlock(BtreeControl_t *pTable);
 

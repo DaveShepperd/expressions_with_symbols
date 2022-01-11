@@ -138,30 +138,38 @@ HashRoot_t* libHashInit(int tableSize, const HashCallbacks_t *callbacks)
 	return tbl;
 }
 
-void libHashDestroy(HashRoot_t *pTable, void (*entry_free_fn)(void *freeArg, HashEntry_t entry), void *freeArg)
+HashErrors_t libHashDestroy(HashRoot_t *pTable, void (*entry_free_fn)(void *freeArg, HashEntry_t entry), void *freeArg)
 {
 	int ii;
+	HashErrors_t err;
 	void (*memFree)(void *memArg, void *ptr) = pTable->callbacks.memFree;
 	void *memArg = pTable->callbacks.memArg;
 	
-	pthread_mutex_destroy(&pTable->lock);
-	for (ii = 0; ii < pTable->hashTableSize; ++ii)
+	pTable->verbose |= HASHTBL_VERBOSE_ERROR;
+	if ( !(err=libHashLock(pTable)) )
 	{
-		HashPrimitive_t *pHash, *pNext;
-		pNext = pTable->hashTable[ii];
-		while ( (pHash=pNext) )
+		for (ii = 0; ii < pTable->hashTableSize; ++ii)
 		{
-			if ( entry_free_fn )
-				entry_free_fn(freeArg, pHash->entry);
-			pNext = pHash->next;
-			pHash->entry = NULL;
-			pHash->next = NULL;
-			pHash->prev = NULL;
-			memFree(memArg,pHash);
+			HashPrimitive_t *pHash, *pNext;
+			pNext = pTable->hashTable[ii];
+			while ( (pHash=pNext) )
+			{
+				if ( entry_free_fn )
+					entry_free_fn(freeArg, pHash->entry);
+				pNext = pHash->next;
+				pHash->entry = NULL;
+				pHash->next = NULL;
+				pHash->prev = NULL;
+				memFree(memArg,pHash);
+			}
 		}
+		memFree(memArg,pTable->hashTable);
+		pthread_mutex_unlock(&pTable->lock);
+		pthread_mutex_destroy(&pTable->lock);
+		memFree(memArg,pTable);
+		err = HashSuccess;
 	}
-	memFree(memArg,pTable->hashTable);
-	memFree(memArg,pTable);
+	return err;
 }
 
 typedef struct
@@ -272,6 +280,7 @@ HashErrors_t libHashReplace(HashRoot_t *pTable, const HashEntry_t entry, HashEnt
 {
 	HashPrimitive_t *pHashEntry;
 	FindTbl_t fTbl;
+	HashErrors_t err1, err2=HashSuccess;
 	
 	if ( pExisting )
 		*pExisting = NULL;
@@ -279,53 +288,59 @@ HashErrors_t libHashReplace(HashRoot_t *pTable, const HashEntry_t entry, HashEnt
 	if ( !pTable || !entry )
 		return HashInvalidParam;
 	/* Lock the hash table for the search */ 
-	pthread_mutex_lock(&pTable->lock);
-	/* Look for the current entry */
-	pHashEntry = findPlace(pTable,entry,&fTbl);
-	if ( !pHashEntry )
+	if ( !(err1 = libHashLock(pTable)) )
 	{
-		if ( !(pHashEntry = getNewEntry(pTable)) )
+		/* Look for the current entry */
+		pHashEntry = findPlace(pTable,entry,&fTbl);
+		if ( !pHashEntry )
 		{
-			pthread_mutex_unlock(&pTable->lock);
-			return HashOutOfMemory;
+			if ( !(pHashEntry = getNewEntry(pTable)) )
+			{
+				libHashUnlock(pTable);
+				return HashOutOfMemory;
+			}
+			pHashEntry->entry = entry;
+			internalInsert(pTable, &fTbl, pHashEntry);
 		}
-		pHashEntry->entry = entry;
-		internalInsert(pTable, &fTbl, pHashEntry);
+		else
+		{
+			if ( pExisting )
+				*pExisting = pHashEntry->entry;
+			pHashEntry->entry = entry;
+		}
+		err1 = HashSuccess;
+		err2 = libHashUnlock(pTable);
 	}
-	else
-	{
-		if ( pExisting )
-			*pExisting = pHashEntry->entry;
-		pHashEntry->entry = entry;
-	}
-	pthread_mutex_unlock(&pTable->lock);
-	return HashSuccess;
+	return err1 ? err1 : err2;
 }
 
 HashErrors_t libHashInsert(HashRoot_t *pTable, const HashEntry_t entry)
 {
 	HashPrimitive_t *pHashEntry;
 	FindTbl_t fTbl;
+	HashErrors_t err1, err2=HashSuccess;
 	
 	/* */
 	if ( !pTable || !entry )
 		return HashInvalidParam; 
-	pthread_mutex_lock(&pTable->lock);
-	pHashEntry = findPlace(pTable,entry,&fTbl);
-	if ( pHashEntry )
+	if ( !(err1=libHashLock(pTable)) )
 	{
-		pthread_mutex_unlock(&pTable->lock);
-		return HashDuplicateSymbol;
+		pHashEntry = findPlace(pTable, entry, &fTbl);
+		if ( pHashEntry )
+		{
+			libHashUnlock(pTable);
+			return HashDuplicateSymbol;
+		}
+		if ( !(pHashEntry = getNewEntry(pTable)) )
+		{
+			libHashUnlock(pTable);
+			return HashOutOfMemory;
+		}
+		pHashEntry->entry = entry;
+		internalInsert(pTable,&fTbl,pHashEntry);
+		err2 = libHashUnlock(pTable);
 	}
-	if ( !(pHashEntry = getNewEntry(pTable)) )
-	{
-		pthread_mutex_unlock(&pTable->lock);
-		return HashOutOfMemory;
-	}
-	pHashEntry->entry = entry;
-	internalInsert(pTable,&fTbl,pHashEntry);
-	pthread_mutex_unlock(&pTable->lock);
-	return HashSuccess;
+	return err1 ? err1 : err2;
 }
 
 HashErrors_t libHashDelete(HashRoot_t *pTable, HashEntry_t entry, HashEntry_t *pExisting)
@@ -431,25 +446,31 @@ void libHashDump(HashRoot_t *pTable, HashDumpCallback_t callback_fn, void *pUser
 	}
 }
 
-HashErrors_t hashTableLock(HashRoot_t *pTable)
+HashErrors_t libHashLock(HashRoot_t *pTable)
 {
 	if ( pthread_mutex_lock(&pTable->lock) )
 	{
-		char emsg[128];
-		snprintf(emsg,sizeof(emsg),"Failed to lock hash table: %s\n", strerror(errno));
-		pTable->callbacks.msgOut(pTable->callbacks.msgArg,HASH_SEVERITY_ERROR,emsg);
+		if ( (pTable->verbose&HASHTBL_VERBOSE_ERROR) )
+		{
+			char emsg[128];
+			snprintf(emsg,sizeof(emsg),"Failed to lock hash table: %s\n", strerror(errno));
+			pTable->callbacks.msgOut(pTable->callbacks.msgArg,HASH_SEVERITY_ERROR,emsg);
+		}
 		return HashNoLock;
 	}
 	return HashSuccess;
 }
 
-HashErrors_t hashTableUnlock(HashRoot_t *pTable)
+HashErrors_t libHashUnlock(HashRoot_t *pTable)
 {
 	if ( pthread_mutex_unlock(&pTable->lock) )
 	{
-		char emsg[128];
-		snprintf(emsg,sizeof(emsg),"Failed to unlock hash table: %s\n", strerror(errno));
-		pTable->callbacks.msgOut(pTable->callbacks.msgArg,HASH_SEVERITY_ERROR,emsg);
+		if ( (pTable->verbose&HASHTBL_VERBOSE_ERROR) )
+		{
+			char emsg[128];
+			snprintf(emsg,sizeof(emsg),"Failed to unlock hash table: %s\n", strerror(errno));
+			pTable->callbacks.msgOut(pTable->callbacks.msgArg,HASH_SEVERITY_ERROR,emsg);
+		}
 		return HashNoUnLock;
 	}
 	return HashSuccess;

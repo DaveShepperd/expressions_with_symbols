@@ -151,14 +151,18 @@ static void destroyUtil(BtreeControl_t *pTable, BtreeNode_t *pNode, void (*entry
 
 BtreeErrors_t libBtreeDestroy(BtreeControl_t *pTable, void (*entry_free_fn)(void *freeArg, BtreeEntry_t entry), void *freeArg)
 {
+	BtreeErrors_t err1;
+	
 	if ( !pTable )
 		return BtreeInvalidParam;
-	pthread_mutex_lock(&pTable->lock);
-	destroyUtil(pTable, pTable->root, entry_free_fn, freeArg);
-	pthread_mutex_unlock(&pTable->lock);
-	pthread_mutex_destroy(&pTable->lock);
-	pTable->callbacks.memFree(pTable->callbacks.memArg, pTable);
-	return BtreeSuccess;
+	if ( !(err1=libBtreeLock(pTable)) )
+	{
+		destroyUtil(pTable, pTable->root, entry_free_fn, freeArg);
+		pthread_mutex_unlock(&pTable->lock);
+		pthread_mutex_destroy(&pTable->lock);
+		pTable->callbacks.memFree(pTable->callbacks.memArg, pTable);
+	}
+	return err1;
 }
 
 /* From Wikipedia at: https://en.wikipedia.org/wiki/AVL_tree */
@@ -836,50 +840,57 @@ int libBtreeHeight(BtreeControl_t *pTable)
 
 BtreeErrors_t libBtreeInsert(BtreeControl_t *pTable, const BtreeEntry_t entry)
 {
-	BtreeErrors_t err;
+	BtreeErrors_t err1, err2=BtreeSuccess;
 	BtreeNode_t *pInsertedNode;
 	
-	err = insert(pTable, entry, pTable->root, &pInsertedNode);
-#if 1
-	if ( err == BtreeSuccess )
-		reBalanceAfterInsert(pTable,pInsertedNode);
-#endif
-	return err;
+	if ( !(err1=libBtreeLock(pTable)) )
+	{
+		err1 = insert(pTable, entry, pTable->root, &pInsertedNode);
+		if ( err1 == BtreeSuccess )
+			reBalanceAfterInsert(pTable,pInsertedNode);
+		err2 = libBtreeUnlock(pTable);
+	}
+	return err1 ? err1 : err2;
 }
 
 BtreeErrors_t libBtreeReplace(BtreeControl_t *pTable, const BtreeEntry_t entry, BtreeEntry_t *pExisting)
 {
+	BtreeErrors_t err1, err2=BtreeSuccess;
+	
 	if ( pExisting )
 		*pExisting = 0;
-	return replace(pTable, entry, pTable->root, pExisting);
+	if ( !(err1=libBtreeLock(pTable)) )
+	{
+		err1 = replace(pTable, entry, pTable->root, pExisting);
+		err2 = libBtreeUnlock(pTable);
+	}
+	return err1 ? err1 : err2;
 }
 
 BtreeErrors_t libBtreeDelete(BtreeControl_t *pTable, const BtreeEntry_t entry, BtreeEntry_t *pExisting)
 {
-	BtreeErrors_t err, err2;
+	BtreeErrors_t err1, err2=BtreeSuccess;
 	
 	if ( pExisting )
 		*pExisting = 0;
-	if ( !(err=libBtreeLock(pTable)) )
+	if ( !(err1=libBtreeLock(pTable)) )
 	{
-		err = del(pTable, entry, pExisting);
+		err1 = del(pTable, entry, pExisting);
 		err2 = libBtreeUnlock(pTable);
-		if ( !err )
-			err = err2;
 	}
-	return err;
+	return err1 ? err1 : err2;
 }
 
 BtreeErrors_t libBtreeFind(BtreeControl_t *pTable, const BtreeEntry_t entry, BtreeEntry_t *pResult, int alreadyLocked)
 {
 	BtreeNode_t *old;
-	BtreeErrors_t err=BtreeSuccess, err2;
+	BtreeErrors_t err1=BtreeSuccess, err2=BtreeSuccess;
 	
 	if ( pResult )
 		*pResult = NULL;
 	if ( !alreadyLocked )
-		err = libBtreeLock(pTable);
-	if ( err == BtreeSuccess )
+		err1 = libBtreeLock(pTable);
+	if ( err1 == BtreeSuccess )
 	{
 		old = search(pTable, entry, pTable->root);
 		if ( old )
@@ -888,53 +899,51 @@ BtreeErrors_t libBtreeFind(BtreeControl_t *pTable, const BtreeEntry_t entry, Btr
 				*pResult = old->entry;
 		}
 		else
-			err = BtreeNoSuchSymbol;
+			err1 = BtreeNoSuchSymbol;
 		if ( !alreadyLocked )
-		{
 			err2 = libBtreeUnlock(pTable);
-			if ( !err )
-				err = err2;
-		}
 	}
-	return err;
+	return err1 ? err1 : err2;
 }
 
 int libBtreeWalk(BtreeControl_t *pTable, BtreeOrders_t order, BtreeWalkCallback_t callback_fn, void *pUserData)
 {
-	int err, err2;
+	int err1, err2=BtreeSuccess;
 	
-	if ( (err=libBtreeLock(pTable)) )
-		return err;
-	switch (order)
+	if ( !(err1=libBtreeLock(pTable)) )
 	{
-	case BtreeInorder:
-		err = inorder(pTable,pTable->root,callback_fn,pUserData);
-		break;
-	case BtreePreorder:
-		err = preorder(pTable,pTable->root,callback_fn,pUserData);
-		break;
-	case BtreePostorder:
-		err = postorder(pTable,pTable->root,callback_fn,pUserData);
-		break;
-	case BtreeEndorder:
-		err = endorder(pTable,pTable->root,callback_fn,pUserData);
-		break;
+		switch (order)
+		{
+		case BtreeInorder:
+			err1 = inorder(pTable,pTable->root,callback_fn,pUserData);
+			break;
+		case BtreePreorder:
+			err1 = preorder(pTable,pTable->root,callback_fn,pUserData);
+			break;
+		case BtreePostorder:
+			err1 = postorder(pTable,pTable->root,callback_fn,pUserData);
+			break;
+		case BtreeEndorder:
+			err1 = endorder(pTable,pTable->root,callback_fn,pUserData);
+			break;
+		}
+		if ( err1 )
+			err1 += BtreeMaxError;
+		err2 = libBtreeUnlock(pTable);
 	}
-	if ( err )
-		err += BtreeMaxError;
-	err2 = libBtreeUnlock(pTable);
-	if ( !err )
-		err = err2;
-	return err;
+	return err1 ? err1 : err2;
 }
 
 BtreeErrors_t libBtreeLock(BtreeControl_t *pTable)
 {
 	if ( pthread_mutex_lock(&pTable->lock) )
 	{
-		char emsg[128];
-		snprintf(emsg,sizeof(emsg),"Failed to lock mutex: %s\n", strerror(errno));
-		pTable->callbacks.msgOut(pTable->callbacks.msgArg, BTREE_SEVERITY_ERROR, emsg);
+		if ( (pTable->verbose&BTREE_VERBOSE_ERROR) )
+		{
+			char emsg[128];
+			snprintf(emsg,sizeof(emsg),"Failed to lock mutex: %s\n", strerror(errno));
+			pTable->callbacks.msgOut(pTable->callbacks.msgArg, BTREE_SEVERITY_ERROR, emsg);
+		}
 		return BtreeLockFail;
 	}
 	return BtreeSuccess;
@@ -944,9 +953,12 @@ BtreeErrors_t  libBtreeUnlock(BtreeControl_t *pTable)
 {
 	if ( pthread_mutex_unlock(&pTable->lock) )
 	{
-		char emsg[128];
-		snprintf(emsg,sizeof(emsg),"Failed to unlock mutex: %s\n", strerror(errno));
-		pTable->callbacks.msgOut(pTable->callbacks.msgArg, BTREE_SEVERITY_ERROR, emsg);
+		if ( (pTable->verbose&BTREE_VERBOSE_ERROR) )
+		{
+			char emsg[128];
+			snprintf(emsg,sizeof(emsg),"Failed to unlock mutex: %s\n", strerror(errno));
+			pTable->callbacks.msgOut(pTable->callbacks.msgArg, BTREE_SEVERITY_ERROR, emsg);
+		}
 		return BtreeLockFail;
 	}
 	return BtreeSuccess;
