@@ -12,3 +12,5 @@ lib_btree - a balanced binary tree using the AVL algorithm I just copied what wa
 lib_exprs - an expression parser. Contained entirely in lib_exprs.[ch]
 
 They can be found in the libs folder. There is a Makefile but it has only been built with gcc. Good luck building with other compilers.
+
+The various xxx_test.[ch] files are just test files that I was using to test various functions of those subsystems. There are comments in the exprs_test_xx files that highlight and demonstrate how to use the API's to the three subsystems.
