@@ -1,5 +1,5 @@
 # expressions_with_symbols
-A simple example of an expression parser and symbol handler. The symbols can be handled with a balanced tree or a hash table or none at all.
+An example of an expression parser with optional symbol handlers. The symbols, if desired, can be handled with either a balanced tree or a hash table.
 
 The last project I worked on had a terrible expression parser. It had no operator precedence and a syntax error sent it into an infinite loop.
 
@@ -13,6 +13,8 @@ It consists of three separate independent subsystems I believe suitable for use 
 
 #### lib_exprs - an expression parser. Contained entirely in lib_exprs.[ch]
 
-They can be found in the libs folder. There is a Makefile but it has only been built with gcc. Good luck building with other compilers.
+They can be found in the **_libs_** folder. There are **_Makefiles_** but they have only been built with gcc. Good luck building with other compilers.
 
-The various **_xxx_test.[ch]_** files are just test files that I was using to test various functions of those subsystems. There are comments in the exprs_test_xx files that highlight and demonstrate how to use the API's to the three subsystems.
+The API's to each of the subsystems are described via comments in the corresponding .h files. Examples of how to use them can be found in the **_xxx_test.[ch]_** files.
+
+Although the standard libc btree and hash functions no doubt work just fine, I was always a bit disappointed they had no user provided mechanism for memory management nor anything that might help with statistics gathering. So these provided subsystems have callbacks for that as well as message reporting.
