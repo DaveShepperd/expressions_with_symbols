@@ -17,7 +17,7 @@ They can be found in the **_libs_** folder. There are **_Makefiles_** but they h
 
 The API's to each of the three subsystems are described via comments in the corresponding **_.h_** files.
 
-The symbols can have a value type of string, integer or double. If a string term appears anywhere in the expression, all terms are converted to strings and the final result is a string. String operands in an expression are concatinated and the only legal operator between terms where one or more term is a string can only be a **_+_**. I.e. **_"foo"+10/2_** results in **_"foo5"_** or **_"foo"+"bar"_** becomes **_"foobar"_**.
+The symbols can have a value type of string, integer or double. If a string term appears in the expression terms (after normal evaluation) are converted to strings and prefixed or concatenated with it leaving the final result always being a string. String terms in an expression may only be joined with a **_+_**. I.e. **_"foo"+10/2_** results in **_"foo5"_** or **_"foo"+"bar"_** becomes **_"foobar"_** or **_10/2+"foo"_** becomes **_"5foo"_**.
 
 For an example on how to use **_lib_exprs_** without needing or wanting symbols, see **_exprs_test_nos.c_**. I.e. **_./main '1+2*3/4'_**
 
