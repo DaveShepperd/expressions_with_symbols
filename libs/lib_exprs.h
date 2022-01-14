@@ -346,10 +346,13 @@ extern const char *libExprsGetErrorStr(ExprsErrs_t errCode);
  *  At entry:
  *  @param exprs - pointer to expression parser control as
  *  			 returned from libExprsInit().
- *  @param text - null terminated text of expressino to
+ *  @param text - null terminated text of expression to
  *  			evaluate.
  *  @param returnTerm - pointer to place into which to deposit
  *  				  the result.
+ *  @param alreadyLocked - set to non-zero to indicate the mutex
+ *  					 lock on the ExprsDef_t has already been
+ *  					 performed by libExprsLock().
  *
  *  At exit:
  *  @return 0 on success, else error. On success, the place
@@ -357,8 +360,20 @@ extern const char *libExprsGetErrorStr(ExprsErrs_t errCode);
  *  		result. The result may only be of type integer,
  *  		float or string. It will not return anything more
  *  		complex.
+ *
+ *  @note At entry to this function all internal variables are
+ *  	  cleared. That is, nothing is remembered about any
+ *  	  previous expression parse from one call to another.
+ *
+ *  @note If the return result is of type string, a pointer to
+ *  	  that string will be into the internal string pool
+ *  	  maintained by lib_exprs. If one wants to keep that
+ *  	  string, one must make a copy of it before making
+ *  	  another call to libExprsEval() or
+ *  	  libExprsDestroy() because the pointer to that string
+ *  	  will not survive a subsequent call to either.
  **/
-extern ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm);
+extern ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm, int alreadyLocked);
 
 /** libExprsLock - lock the hash table.
  *

@@ -111,15 +111,15 @@ typedef unsigned char Precedence_t;
 /* This establishes the precedence of the various operators. */
 static const Precedence_t Precedence[] =
 {
-	9,	/* EXPRS_TERM_NULL, */
-	9,	/* EXPRS_TERM_LINK,  *//* link to another stack */
-	9,	/* EXPRS_TERM_SYMBOL, *//* Symbol */
-	9,	/* EXPRS_TERM_FUNCTION, *//* Function call */
-	9,	/* EXPRS_TERM_STRING, *//* Text string */
-	9,	/* EXPRS_TERM_FLOAT, *//* 64 bit floating point number */
-	9,	/* EXPRS_TERM_INTEGER, *//* 64 bit integer number */
-	8,	/* EXPRS_TERM_PLUS,  *//* + (unary term) */
-	8,	/* EXPRS_TERM_MINUS, *//* - (unary term) */
+	10,	/* EXPRS_TERM_NULL, */
+	10,	/* EXPRS_TERM_LINK,  *//* link to another stack */
+	10,	/* EXPRS_TERM_SYMBOL, *//* Symbol */
+	10,	/* EXPRS_TERM_FUNCTION, *//* Function call */
+	10,	/* EXPRS_TERM_STRING, *//* Text string */
+	10,	/* EXPRS_TERM_FLOAT, *//* 64 bit floating point number */
+	10,	/* EXPRS_TERM_INTEGER, *//* 64 bit integer number */
+	9,	/* EXPRS_TERM_PLUS,  *//* + (unary term) */
+	9,	/* EXPRS_TERM_MINUS, *//* - (unary term) */
 	8,	/* EXPRS_TERM_COM,	 *//* ~ */
 	8,	/* EXPRS_TERM_NOT,	 *//* ! */
 	7,	/* EXPRS_TERM_POW,	 *//* ** */
@@ -367,7 +367,8 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		}
 		if ( exprs->mVerbose )
 		{
-			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Processing terms[%ld][%d], cc=%c, chMask=0x%04X:  %s\n", sPtr - exprs->mStacks, sPtr->mNumTerms, isprint(cc) ? cc : '.', chMask, exprs->mCurrPtr);
+			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Processing terms[%ld][%d], cc=%c, chMask=0x%04X, lastWasOper=%d:  %s\n",
+					 sPtr - exprs->mStacks, sPtr->mNumTerms, isprint(cc) ? cc : '.', chMask, lastTermWasOperator, exprs->mCurrPtr);
 			showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		}
 		term = sPtr->mTerms + sPtr->mNumTerms;
@@ -550,6 +551,26 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a DECIMAL Integer %ld. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper);
 						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 					}
+					exprs->mCurrPtr = endP;
+					term->termType = EXPRS_TERM_INTEGER;
+					lastTermWasOperator = false;
+					++sPtr->mNumTerms;
+					continue;
+				}
+				if ( exprs->mCurrPtr[1] == 'b' || exprs->mCurrPtr[1] == 'B' )
+				{
+					char *sEndp;
+					startP += 2;
+					sEndp = NULL;
+					term->term.s64 = strtoll(startP,&sEndp,2);
+					if ( !sEndp )
+						return EXPR_TERM_BAD_NUMBER;
+					if ( exprs->mVerbose )
+					{
+						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a binary Integer %ld. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper);
+						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+					}
+					endP = sEndp;
 					exprs->mCurrPtr = endP;
 					term->termType = EXPRS_TERM_INTEGER;
 					lastTermWasOperator = false;
@@ -1384,7 +1405,8 @@ static ExprsErrs_t doMod( ExprsDef_t *exprs, ExprsTerm_t *dst, ExprsTerm_t *aa, 
 		switch (bb->termType)
 		{
 		case EXPRS_TERM_FLOAT:
-			dst->term.s64 = fmod(aa->term.s64, bb->term.f64);
+			dst->term.f64 = fmod(aa->term.s64, bb->term.f64);
+			dst->termType = EXPRS_TERM_FLOAT;
 			err = EXPR_TERM_GOOD;
 			break;
 		case EXPRS_TERM_INTEGER:
@@ -1563,9 +1585,11 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 			params.results[++params.rTop] = *term;
 			continue;
 		case EXPRS_TERM_PLUS:	/* + */
+			if ( (err=prepUnaryTerm(&params,false)) )
+				return err;
 			if ( exprs->mVerbose )
 			{
-				snprintf(eBuf,sizeof(eBuf),"computeViaRPN(): Item %d: %s, aa=%s\n",
+				snprintf(eBuf,sizeof(eBuf),"computeViaRPN(): PLUS Item %d: %s, aa=%s\n",
 					   ii,
 					   showTermType(exprs,sPtr,term,params.tmpBuf0,sizeof(params.tmpBuf0)-1),
 					   showTermType(exprs,sPtr,params.aa,params.tmpBuf1,sizeof(params.tmpBuf1)-1));
@@ -1575,6 +1599,14 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 		case EXPRS_TERM_MINUS:	/* - */
 			if ( (err=prepUnaryTerm(&params,false)) )
 				return err;
+			if ( exprs->mVerbose )
+			{
+				snprintf(eBuf,sizeof(eBuf),"computeViaRPN(): MINUS Item %d: %s, aa=%s\n",
+					   ii,
+					   showTermType(exprs,sPtr,term,params.tmpBuf0,sizeof(params.tmpBuf0)-1),
+					   showTermType(exprs,sPtr,params.aa,params.tmpBuf1,sizeof(params.tmpBuf1)-1));
+				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+			}
 			if ( params.aa->termType == EXPRS_TERM_INTEGER )
 				params.aa->term.s64 = -params.aa->term.s64;
 			else if ( params.aa->termType == EXPRS_TERM_FLOAT )
@@ -1950,15 +1982,15 @@ const char *libExprsGetErrorStr(ExprsErrs_t errCode)
 	return "Undefined errCode";
 }
 
-ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm)
+ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm, int alreadyLocked)
 {
-	ExprsErrs_t err=EXPR_TERM_BAD_SYNTAX,err2;
+	ExprsErrs_t err = EXPR_TERM_BAD_SYNTAX, err2 = EXPR_TERM_GOOD;
 	char eBuf[512];
 	int len;
 	
 	if ( !exprs || !returnTerm )
 		return EXPR_TERM_BAD_PARAMETER;
-	if ( (err2=libExprsLock(exprs)) )
+	if ( !alreadyLocked && (err2=libExprsLock(exprs)) )
 		return err2;
 	returnTerm->termType = EXPRS_TERM_NULL;
 	returnTerm->term.s64 = 0;
@@ -1973,7 +2005,7 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 		while ( exprs->mCurrPtr < ePtr && *exprs->mCurrPtr )
 		{
 			reset(exprs); 				/* Clear any existing cruft */
-			err = parseExpression(exprs, 0, false, getNextStack(exprs));
+			err = parseExpression(exprs, 0, true, getNextStack(exprs));
 			if ( err <= EXPR_TERM_END )
 			{
 /*				dumpStacks(); */
@@ -2049,7 +2081,8 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 				break;
 		}
 	}
-	err2 = libExprsUnlock(exprs);
+	if ( !alreadyLocked )
+		err2 = libExprsUnlock(exprs);
 	return err ? err : err2;
 }
 

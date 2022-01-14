@@ -456,7 +456,7 @@ int exprsTestBtree(int btreeSize, const char *expression, int verbose)
 		tmpSym.term.f64 = 3.14159;
 		setBtreeSym(pBtreeTable,"pi",&tmpSym);
 		libExprsSetVerbose(exprs,verbose);
-		err = libExprsEval(exprs,expression,&result); 
+		err = libExprsEval(exprs,expression,&result,0); 
 		if ( err )
 		{
 			printf("Expression returned error: %s\n", libExprsGetErrorStr(err));

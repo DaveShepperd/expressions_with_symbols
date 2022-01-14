@@ -53,7 +53,7 @@ int exprsTestNoSym(const char *expression, int verbose)
 		return 1;
 	}
 	libExprsSetVerbose(exprs,verbose);
-	err = libExprsEval(exprs,expression,&result); 
+	err = libExprsEval(exprs,expression,&result,0); 
 	if ( err )
 	{
 		printf("Expression returned error %d: %s\n", err, libExprsGetErrorStr(err));

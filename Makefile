@@ -14,7 +14,7 @@ CFLAGS=$(INCS) $(OPT) $(WARNS) $(BUILD)
 
 default: $(DEPEND) $(TARGET)
 
-OBJS=exprs_test_bt.o exprs_test_ht.o exprs_test_nos.o
+OBJS=exprs_test.o exprs_test_bt.o exprs_test_ht.o exprs_test_nos.o
 
 $(DEPEND_LIB):
 	cd libs;make
@@ -28,6 +28,7 @@ clean:
 
 $(TARGET).o: $(TARGET).c
 
+exprs_test.o: exprs_test.c exprs_test.h
 exprs_test_bt.o: exprs_test_bt.c exprs_test_bt.h
 exprs_test_ht.o: exprs_test_ht.c exprs_test_ht.h
 exprs_test_nos.o: exprs_test_nos.c exprs_test_nos.h
