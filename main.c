@@ -88,7 +88,7 @@ int main(int argc, char *argv[])
 		exprs = argv[optind];
 		if ( btree_size )
 			return exprsTestBtree(btree_size, exprs, verbose);
-		else
+		else if ( tblSize )
 			return exprsTestHashTbl(tblSize, exprs, verbose);
 		return exprsTestNoSym(exprs,verbose);
 	}

@@ -8,8 +8,8 @@ STDLIBS=-lm
 WARNS=-Wall -pedantic
 BUILD=-std=c99
 INCS=-Ilibs
-#OPT=-O0 -g
-OPT=-O3
+OPT=-O0 -g
+#OPT=-O3
 CFLAGS=$(INCS) $(OPT) $(WARNS) $(BUILD)
 
 default: $(DEPEND) $(TARGET)

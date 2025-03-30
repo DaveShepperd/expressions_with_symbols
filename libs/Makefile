@@ -2,7 +2,8 @@ CC=gcc
 AR=ar
 WARNS=-Wall 
 BUILD=-std=c99 -pedantic
-OPT=-O3
+OPT=-O0 -g
+#OPT=-O3
 INCS=
 
 CFLAGS=$(INCS) $(BUILD) $(OPT) $(WARNS)
