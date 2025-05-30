@@ -78,6 +78,9 @@ typedef enum
 	EXPRS_TERM_MINUS,	/* - (unary term in this case) */
 	EXPRS_TERM_COM,		/* ~ */
 	EXPRS_TERM_NOT,		/* ! */
+	EXPRS_TERM_HIGH_BYTE, /* high byte */
+	EXPRS_TERM_LOW_BYTE,/* low byte */
+	EXPRS_TERM_XCHG,	/* exchange bytes */
 	EXPRS_TERM_POW,		/* ** */
 	EXPRS_TERM_MUL,		/* * */
 	EXPRS_TERM_DIV,		/* / */
@@ -126,7 +129,7 @@ typedef struct
 {
 	ExprsTermTypes_t mOperType;		/* Really just the operator types will be here not any generic term types */
 	const char *chrPtr;				/* pointer in expression string where operator found */
-	char mOper[2];					/* operator string */
+	char mOper[3];					/* operator string (up to 2 characters plus a null) */
 } ExprsOpers_t;
 
 /** ExprsStack_t - definition of a expression stack
@@ -145,8 +148,10 @@ typedef enum
 {
 	EXPR_TERM_GOOD,
 	EXPR_TERM_END,
+	EXPR_TERM_COMPLEX_VALUE,
 	EXPR_TERM_BAD_OUT_OF_MEMORY,
 	EXPR_TERM_BAD_NO_STRING_TERM,
+	EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED,
 	EXPR_TERM_BAD_SYMBOL_SYNTAX,
 	EXPR_TERM_BAD_SYMBOL_TOO_LONG,
 	EXPR_TERM_BAD_NUMBER,
@@ -176,7 +181,8 @@ typedef enum
 {
 	EXPRS_SYM_TERM_STRING=EXPRS_TERM_STRING,	/* Text string */
 	EXPRS_SYM_TERM_FLOAT=EXPRS_TERM_FLOAT,		/* 64 bit floating point number */
-	EXPRS_SYM_TERM_INTEGER=EXPRS_TERM_INTEGER	/* 64 bit integer number */
+	EXPRS_SYM_TERM_INTEGER=EXPRS_TERM_INTEGER,	/* 64 bit integer number */
+	EXPRS_SYM_TERM_COMPLEX						/* type defined by symbol manager */
 } ExprsSymTermTypes_t;
 
 /** ExprsSymTerm_t - definition of the primitive contents of any
@@ -192,6 +198,7 @@ typedef struct
 		char *string;
 		double f64;
 		long s64;
+		void *complex;
 	} term;
 } ExprsSymTerm_t;
 
@@ -236,6 +243,26 @@ typedef struct
 	void *symArg;									/*! Argument to pass to symGet/symSet callbacks */
 } ExprsCallbacks_t;
 
+typedef unsigned char ExprsPrecedence_t;
+
+/** Exprs flags:
+ */
+#define EXPRS_FLG_USE_RADIX		0x00000001	/*! Use radix to figure out numbers */
+#define EXPRS_FLG_NO_FLOAT		0x00000002	/*! No floating point allowed */
+#define EXPRS_FLG_NO_STRING		0x00000004	/*! No strings allowed */
+#define EXPRS_FLG_NO_PRECEDENCE	0x00000008	/*! No operator precedence */
+#define EXPRS_FLG_H_HEX			0x00000010	/*! Hex can be expressed with trailing 'h' or 'H' */
+#define EXPRS_FLG_DOLLAR_HEX	0x00000020	/*! Hex can be expressed with trailing '$' */
+#define EXPRS_FLG_O_OCTAL		0x00000040	/*! Octal can be expressed with trailing 'o' or 'O' */
+#define EXPRS_FLG_Q_OCTAL		0x00000080	/*! Octal can be expressed with trailing 'q' or 'Q' */
+#define EXPRS_FLG_DOT_DECIMAL	0x00000100	/*! Decimal can be expressed with trailing '.' */
+#define EXPRS_FLG_NO_POWER		0x00000200	/*! No exponent allowed */
+#define EXPRS_FLG_SINGLE_QUOTE	0x00000400	/*! Allow single quoted chars (i.e. 'a vs. 'a' */
+#define EXPRS_FLG_NO_LOGICALS	0x00000800	/*! No logical operators allowed (i.e. mac65 et al) */
+#define EXPRS_FLG_SPECIAL_UNARY	0x00001000	/*! Enable special unary operators (i.e. mac65 et al) */
+#define EXPRS_FLG_NO_ASSIGNMENT	0x00002000	/*! No assignment */
+#define EXPRS_FLG_WS_DELIMIT	0x00004000	/*! White space delimits non-operator terms */
+
 /** ExprsDef_t - definition of expression stack internal
  *  variables. With the exception of userArg1 and userArg2
  *  these struct members should be thought of as read-only.
@@ -246,7 +273,7 @@ typedef struct
 	void *userArg1;					/*! can be used for any purpose */
 	void *userArg2;					/*! can be used for any purpose */
 	ExprsCallbacks_t mCallbacks;	/*! callbacks to be used by the parser */
-	int mVerbose;					/*! verbose flags */
+	unsigned int mVerbose;			/*! verbose flags */
 	ExprsStack_t *mStacks;			/*! Pointer to expression stacks */
 	ExprsTerm_t *mTermPool;			/*! Pointer to pool of expression terms */
 	int mNumAvailTerms;				/*! Total number of available terms in term pool */
@@ -258,6 +285,11 @@ typedef struct
 	int mNumAvailStacks;			/*! Total number of stacks available */
 	const char *mCurrPtr;			/*! Pointer to current place in expression string being processed */
 	const char *mLineHead;			/*! Pointer to first character in expression string */
+	unsigned long mFlags;			/*! Bit mask of EXPRS_FLG_xxx bits */
+	int mRadix;						/*! Radix to use if EXPRS_FLG_USE_RADIX flag set */
+	char mOpenDelimiter;			/*! Open expression delimiter */
+	char mCloseDelimiter;			/*! Close expression delimiter */
+	const ExprsPrecedence_t *precedencePtr; /*! Pointer to our precedence table */
 } ExprsDef_t;
 
 /** libExprsInit - Initialize an expression parser.
@@ -323,11 +355,75 @@ extern ExprsErrs_t libExprsSetCallbacks(ExprsDef_t *exprs, const ExprsCallbacks_
  *  @param exprs - pointer to parser control as returned from
  *  			 libExprsInit().
  *  @param newVal - verbose flags.
+ *  @param oldValP - if not null, pointer to place to store old
+ *  			   value.
  *
  *  At exit:
- *  @return previously set verbose flags.
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
  **/
-extern int libExprsSetVerbose(ExprsDef_t *exprs, int newVal);
+extern ExprsErrs_t libExprsSetVerbose(ExprsDef_t *exprs, unsigned int newVal, unsigned int *oldValP);
+
+/** libExprsSetFlags - set the flags.
+ *
+ *  At entry:
+ *  @param exprs - pointer to parser control as returned from
+ *  			 libExprsInit().
+ *  @param newVal - flags.
+ *  @param oldValP - if not null, pointer to place to store old
+ *  			   value.
+ *
+ *  At exit:
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
+ **/
+extern ExprsErrs_t libExprsSetFlags(ExprsDef_t *exprs, unsigned long newVal, unsigned long *oldValP);
+
+/** libExprsSetRadix - set the default radix
+ *
+ *  At entry:
+ *  @param exprs - pointer to parser control as returned from
+ *  			 libExprsInit().
+ *  @param newVal - default radix.
+ *  @param oldValP - if not null, pointer to place to store old
+ *  			   value.
+ *
+ *  At exit:
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
+ **/
+
+extern ExprsErrs_t libExprsSetRadix(ExprsDef_t *exprs, int newVal, int *oldValP);
+
+/** libExprsSetOpenDelimiter - set the open delimiter
+ *
+ *  At entry:
+ *  @param exprs - pointer to parser control as returned from
+ *  			 libExprsInit().
+ *  @param newVal - default open delimiter.
+ *  @param oldValP - if not null, pointer to place to store old
+ *  			   value.
+ *
+ *  At exit:
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
+ **/
+extern ExprsErrs_t libExprsSetOpenDelimiter(ExprsDef_t *exprs, char newVal, char *oldValP);
+
+/** libExprsSetcloseDelimiter - set the close delimiter
+ *
+ *  At entry:
+ *  @param exprs - pointer to parser control as returned from
+ *  			 libExprsInit().
+ *  @param newVal - open delimiter.
+ *  @param oldValP - if not null, pointer to place to store old
+ *  			   value.
+ *
+ *  At exit:
+ * @return 0 on success else error code. Look in errno for
+ *  	   further indication of error.
+ **/
+extern ExprsErrs_t libExprsSetCloseDelimiter(ExprsDef_t *exprs, char newVal, char *oldValP);
 
 /** libExprsGetErrorStr - Translate a parser error into a
  *  text string.

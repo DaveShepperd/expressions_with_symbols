@@ -18,7 +18,7 @@
 #ifndef _EXPRS_TEST_BT_H_
 #define _EXPRS_TEST_BT_H_ (1)
 
-extern int exprsTestBtree(int btreeSize, const char *expression, int verbose);
+extern int exprsTestBtree(int btreeSize, const char *expression, unsigned long flags, int radix, int verbose);
 
 #endif	/* _EXPRS_TEST_BT_H_ */
 

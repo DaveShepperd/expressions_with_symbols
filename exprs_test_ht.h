@@ -18,7 +18,7 @@
 #ifndef _EXPRS_TEST_HT_H_
 #define _EXPRS_TEST_HT_H_ (1)
 
-extern int exprsTestHashTbl(int hashTblSize, const char *expression, int verbose);
+extern int exprsTestHashTbl(int hashTblSize, const char *expression, unsigned long flags, int radix, int verbose);
 
 #endif	/* _EXPRS_TEST_HT_H_ */
 

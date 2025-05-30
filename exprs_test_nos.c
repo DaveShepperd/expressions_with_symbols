@@ -39,7 +39,7 @@
  *
  **/
 
-int exprsTestNoSym(const char *expression, int verbose)
+int exprsTestNoSym(const char *expression, unsigned long flags, int radix, int verbose)
 {
 	ExprsDef_t *exprs;
 	ExprsTerm_t result;
@@ -52,7 +52,9 @@ int exprsTestNoSym(const char *expression, int verbose)
 		fprintf(stderr,"Out of memory doing libExprsInit()\n");
 		return 1;
 	}
-	libExprsSetVerbose(exprs,verbose);
+	libExprsSetVerbose(exprs,verbose,NULL);
+	libExprsSetFlags(exprs,flags,NULL);
+	libExprsSetRadix(exprs,radix,NULL);
 	err = libExprsEval(exprs,expression,&result,0); 
 	if ( err )
 	{
@@ -63,7 +65,7 @@ int exprsTestNoSym(const char *expression, int verbose)
 	{
 		printf("Returned: type=%d, value=", result.termType );
 		if ( result.termType == EXPRS_TERM_INTEGER )
-			printf("%ld", result.term.s64);
+			printf("%ld (0x%lX)", result.term.s64, result.term.u64);
 		else if ( result.termType == EXPRS_TERM_FLOAT )
 			printf("%g", result.term.f64);
 		else if (    result.termType == EXPRS_TERM_STRING
@@ -87,6 +89,8 @@ int exprsTestNoSym(const char *expression, int verbose)
 		else 
 			printf("(not integer, float, string or symbol)");
 		printf("\n");
+		if ( *exprs->mCurrPtr )
+			printf("Left over text: '%s'\n", exprs->mCurrPtr);
 	}
 	libExprsDestroy(exprs);
 	return retV;

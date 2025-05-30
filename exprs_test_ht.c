@@ -152,6 +152,9 @@ static ExprsErrs_t getHashSym(void *symArg, const char *name, ExprsSymTerm_t *va
 		case EXPRS_SYM_TERM_STRING:
 			value->term.string = found->value.term.string;
 			break;
+		case EXPRS_SYM_TERM_COMPLEX:
+			value->term.complex = found->value.term.complex;
+			break;
 		}
 		return EXPR_TERM_GOOD;
 	}
@@ -361,7 +364,7 @@ static void tblDump(void* pArg, int hashIndex, const HashPrimitive_t *pHashEntry
  * @return 0 on success, non-zero on error.
  **/
 
-int exprsTestHashTbl(int hashTblSize, const char *expression, int verbose)
+int exprsTestHashTbl(int hashTblSize, const char *expression, unsigned long flags, int radix, int verbose)
 {
 	ExprsCallbacks_t exprsCallbacks;
 	HashCallbacks_t hashCallbacks;
@@ -400,7 +403,9 @@ int exprsTestHashTbl(int hashTblSize, const char *expression, int verbose)
 	tmpSym.termType = EXPRS_TERM_FLOAT;
 	tmpSym.term.f64 = 3.14159;
 	setHashSym(pHashTable,"pi",&tmpSym);
-	libExprsSetVerbose(exprs,verbose);
+	libExprsSetVerbose(exprs,verbose,NULL);
+	libExprsSetFlags(exprs,flags,NULL);
+	libExprsSetRadix(exprs,radix,NULL);
 	err = libExprsEval(exprs,expression,&result,0); 
 	if ( err )
 	{

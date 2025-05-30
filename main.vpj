@@ -3,16 +3,14 @@
 	Version="10.0"
 	VendorName="SlickEdit"
 	TemplateName="GNU C/C++"
-	WorkingDir="."
-	BuildSystem="vsbuild">
+	WorkingDir=".">
 	<Config
 		Name="Debug"
 		Type="gnuc"
 		DebugCallbackName="gdb"
 		Version="1"
 		OutputFile="%bdmain"
-		CompilerConfigName="Latest Version"
-		Defines="">
+		CompilerConfigName="Latest Version">
 		<Menu>
 			<Target
 				Name="Compile"
@@ -23,9 +21,7 @@
 				OutputExts="*.o"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec
-					CmdLine='gcc -c %xup -ansi %defd -g -Wall -pedantic -Werror %~other -o "%bd%n%oe" %i %f'
-					OtherOptions="-Ilibs -std=c99"/>
+				<Exec CmdLine='gcc -c %xup  %defd -g -o "%bd%n%oe" %i "%f"'/>
 			</Target>
 			<Target
 				Name="Link"
@@ -36,31 +32,25 @@
 				Deletable="0"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec
-					CmdLine='gcc %xup -g -Wall -pedantic -Werror %~other -o "%o" %objs'
-					OtherOptions="-lm"/>
+				<Exec CmdLine='gcc %xup -g -o "%o" %f %libs'/>
 			</Target>
 			<Target
 				Name="Build"
 				MenuCaption="&amp;Build"
-				Dialog="_gnuc_options_form Compile"
 				CaptureOutputWith="ProcessBuffer"
 				Deletable="0"
 				SaveOption="SaveWorkspaceFiles"
-				RunFromDir="%rw"
-				DependsRef="Debug">
-				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" "%w" "%r" -t build'/>
+				RunFromDir="%rw">
+				<Exec CmdLine="make"/>
 			</Target>
 			<Target
 				Name="Rebuild"
 				MenuCaption="&amp;Rebuild"
-				Dialog="_gnuc_options_form Compile"
 				CaptureOutputWith="ProcessBuffer"
 				Deletable="0"
 				SaveOption="SaveWorkspaceFiles"
-				RunFromDir="%rw"
-				DependsRef="Debug">
-				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" "%w" "%r" -t rebuild'/>
+				RunFromDir="%rw">
+				<Exec CmdLine=""/>
 			</Target>
 			<Target
 				Name="Debug"
@@ -138,17 +128,6 @@
 				Name="LinkerOutputType"
 				Value="Executable"/>
 		</List>
-		<Includes/>
-		<Libs PreObjects="0">
-			<Lib File="libs/Debug/lib_hashtbl.a"/>
-			<Lib File="libs/Debug/lib_btree.a"/>
-			<Lib File="libs/Debug/lib_exprs.a"/>
-		</Libs>
-		<Dependencies Name="Debug">
-			<Dependency Project="libs/lib_hashtbl.vpj"/>
-			<Dependency Project="libs/lib_btree.vpj"/>
-			<Dependency Project="libs/lib_exprs.vpj"/>
-		</Dependencies>
 	</Config>
 	<Config
 		Name="Release"
@@ -156,8 +135,7 @@
 		DebugCallbackName="gdb"
 		Version="1"
 		OutputFile="%bdmain"
-		CompilerConfigName="Latest Version"
-		Defines="">
+		CompilerConfigName="Latest Version">
 		<Menu>
 			<Target
 				Name="Compile"
@@ -168,9 +146,7 @@
 				OutputExts="*.o"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec
-					CmdLine='gcc -c %xup -ansi %defd -O3 %~other -o "%bd%n%oe" %i %f'
-					OtherOptions="-Ilibs"/>
+				<Exec CmdLine='gcc -c %xup %defd -o "%bd%n%oe" %i "%f"'/>
 			</Target>
 			<Target
 				Name="Link"
@@ -181,31 +157,25 @@
 				Deletable="0"
 				SaveOption="SaveCurrent"
 				RunFromDir="%rw">
-				<Exec
-					CmdLine='gcc %xup -O3 %~other -o "%o" %objs'
-					OtherOptions="-lm"/>
+				<Exec CmdLine='gcc %xup -o "%o" %f %libs'/>
 			</Target>
 			<Target
 				Name="Build"
 				MenuCaption="&amp;Build"
-				Dialog="_gnuc_options_form Compile"
 				CaptureOutputWith="ProcessBuffer"
 				Deletable="0"
 				SaveOption="SaveWorkspaceFiles"
-				RunFromDir="%rw"
-				DependsRef="Release">
-				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" "%w" "%r" -t build'/>
+				RunFromDir="%rw">
+				<Exec CmdLine="make"/>
 			</Target>
 			<Target
 				Name="Rebuild"
 				MenuCaption="&amp;Rebuild"
-				Dialog="_gnuc_options_form Compile"
 				CaptureOutputWith="ProcessBuffer"
 				Deletable="0"
 				SaveOption="SaveWorkspaceFiles"
-				RunFromDir="%rw"
-				DependsRef="Release">
-				<Exec CmdLine='"%(VSLICKBIN1)vsbuild" "%w" "%r" -t rebuild'/>
+				RunFromDir="%rw">
+				<Exec CmdLine=""/>
 			</Target>
 			<Target
 				Name="Debug"
@@ -283,53 +253,52 @@
 				Name="LinkerOutputType"
 				Value="Executable"/>
 		</List>
-		<Includes/>
-		<Libs PreObjects="0">
-			<Lib File="libs/Release/lib_hashtbl.a"/>
-			<Lib File="libs/Release/lib_btree.a"/>
-			<Lib File="libs/Release/lib_exprs.a"/>
-		</Libs>
-		<Dependencies Name="Release">
-			<Dependency Project="libs/lib_hashtbl.vpj"/>
-			<Dependency Project="libs/lib_btree.vpj"/>
-			<Dependency Project="libs/lib_exprs.vpj"/>
-		</Dependencies>
 	</Config>
 	<Files>
 		<Folder
 			Name="Source Files"
 			Filters="*.c;*.C;*.cc;*.cpp;*.cp;*.cxx;*.c++;*.prg;*.pas;*.dpr;*.asm;*.s;*.bas;*.java;*.cs;*.sc;*.scala;*.e;*.cob;*.html;*.rc;*.tcl;*.py;*.pl;*.d;*.m;*.mm;*.go;*.groovy;*.gsh"
-			GUID="{1139DA0F-66C9-4252-8E95-7BBCF56418F1}">
+			GUID="{37C5E703-878C-455E-BF55-0FDECACC2F33}">
 			<F N="exprs_test.c"/>
 			<F N="exprs_test_bt.c"/>
 			<F N="exprs_test_ht.c"/>
 			<F N="exprs_test_nos.c"/>
+			<F N="libs/lib_btree.c"/>
+			<F N="libs/lib_exprs.c"/>
+			<F N="libs/lib_hashtbl.c"/>
 			<F N="main.c"/>
 		</Folder>
 		<Folder
 			Name="Header Files"
 			Filters="*.h;*.H;*.hh;*.hpp;*.hxx;*.h++;*.inc;*.sh;*.cpy;*.if"
-			GUID="{607D24D6-CC32-4C41-A504-105A2A378667}">
+			GUID="{A57B7120-9A45-4A5A-8EB8-9F5D69D109FA}">
 			<F N="exprs_test.h"/>
 			<F N="exprs_test_bt.h"/>
 			<F N="exprs_test_ht.h"/>
 			<F N="exprs_test_nos.h"/>
+			<F N="libs/lib_btree.h"/>
+			<F N="libs/lib_exprs.h"/>
+			<F N="libs/lib_hashtbl.h"/>
 		</Folder>
 		<Folder
 			Name="Resource Files"
 			Filters="*.ico;*.cur;*.dlg"
-			GUID="{AC20DACE-F1EC-4CE6-BB21-B62258D9326B}"/>
+			GUID="{B5816DBD-3668-4EDE-9FA2-D43F04945A1E}"/>
 		<Folder
 			Name="Bitmaps"
 			Filters="*.bmp"
-			GUID="{2F2C2D9A-B9FC-4DA5-912D-91B6B12BA8C9}"/>
+			GUID="{CA1047A4-99C1-49FA-8529-8301D70E27EE}"/>
 		<Folder
 			Name="Other Files"
 			Filters=""
-			GUID="{1F7769FF-9A5A-4954-9341-8ABA1C688E4B}">
+			GUID="{03C51879-73C8-437C-8609-A5348A9A6B50}">
+			<F N="LICENSE"/>
 			<F
 				N="Makefile"
 				Type="Makefile"/>
+			<F N="README.md"/>
 		</Folder>
 	</Files>
+	<List Name="RTE">
+	</List>
 </Project>

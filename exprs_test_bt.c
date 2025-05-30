@@ -278,6 +278,9 @@ static ExprsErrs_t getBtreeSym(void *userArg, const char *name, ExprsSymTerm_t *
 		case EXPRS_SYM_TERM_STRING:
 			value->term.string = found->value.term.string;
 			break;
+		case EXPRS_SYM_TERM_COMPLEX:
+			value->term.complex = found->value.term.complex;
+			break;
 		}
 		return EXPR_TERM_GOOD;
 	}
@@ -404,7 +407,7 @@ static ExprsErrs_t setBtreeSym(void *symArg, const char *name, const ExprsSymTer
 	return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 }
 
-int exprsTestBtree(int btreeSize, const char *expression, int verbose)
+int exprsTestBtree(int btreeSize, const char *expression, unsigned long flags, int radix, int verbose)
 {
 	ExprsCallbacks_t ourCallbacks;
 	BtreeCallbacks_t btCallbacks;
@@ -455,7 +458,9 @@ int exprsTestBtree(int btreeSize, const char *expression, int verbose)
 		tmpSym.termType = EXPRS_TERM_FLOAT;
 		tmpSym.term.f64 = 3.14159;
 		setBtreeSym(pBtreeTable,"pi",&tmpSym);
-		libExprsSetVerbose(exprs,verbose);
+		libExprsSetVerbose(exprs,verbose,NULL);
+		libExprsSetFlags(exprs,flags,NULL);
+		libExprsSetRadix(exprs,radix,NULL);
 		err = libExprsEval(exprs,expression,&result,0); 
 		if ( err )
 		{

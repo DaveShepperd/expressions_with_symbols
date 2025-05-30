@@ -20,12 +20,16 @@ enum
 	OPT_HASH_SIZE,
 	OPT_TEST,
 	OPT_VERBOSE,
+	OPT_FLAGS,
+	OPT_RADIX,
 	OPT_MAX
 };
 
 static struct option long_options[] =
 {
                    {"btree",      required_argument, 0, OPT_BTREE },
+				   {"flags",      required_argument, 0, OPT_FLAGS },
+				   {"radix",      required_argument, 0, OPT_RADIX },
                    {"hash_size",  required_argument, 0, OPT_HASH_SIZE },
 				   {"test",		  no_argument,		0, OPT_TEST },
 				   {"verbose",    no_argument,       0, OPT_VERBOSE },
@@ -37,10 +41,12 @@ static int helpEm(const char *ourName)
 	fprintf(stderr, "Usage: %s [-b num] [-s hashSize] [-tv] expression\n",
 		   ourName);
 	fprintf(stderr,"Where:\n"
-			"-b num  [or --btree=num]  test using btree symbols. num=maxSize.\n"
-			"-s size [or --hash=size]  set hash table size (default=0)\n"
-			"-t      [or --test]       execute the full expressin parser tester\n"
-			"-v      [or --verbose]    increment verbose mode\n"
+			"-b num   [or --btree=num]    test using btree symbols. num=maxSize.\n"
+			"-f flags [or --flags=flgs]   set flag bits\n"
+			"-r radix [or --radix=rad]    set the default radix\n"
+			"-s size  [or --hash=size]    set hash table size (default=0)\n"
+			"-t       [or --test]         execute the full expressin parser tester\n"
+			"-v       [or --verbose]      increment verbose mode\n"
 			);
 	return 1;
 }
@@ -52,15 +58,39 @@ int main(int argc, char *argv[])
 	int verbose=0;
 	int btree_size=0;
 	int testOnly=0;
+	int radix=0;
+	unsigned long flags=0;
+	char *endp;
 	
 	opt_index = 0;
-	while ((opt = getopt_long_only(argc, argv, "b:s:tv", long_options, &opt_index)) != -1)
+	while ((opt = getopt_long_only(argc, argv, "b:f:r:s:tv", long_options, &opt_index)) != -1)
 	{
 		switch (opt)
 		{
 		case OPT_BTREE:
 		case 'b':
 			btree_size=atoi(optarg);
+			break;
+		case OPT_FLAGS:
+		case 'f':
+			endp = NULL;
+			flags=strtoul(optarg,&endp,0);
+			if ( !endp || *endp )
+			{
+				fprintf(stderr,"Invalid argument to --flags: '%s'\n", optarg);
+				return 1;
+			}
+			break;
+		case OPT_RADIX:
+		case 'r':
+			endp = NULL;
+			radix=strtoul(optarg,&endp,0);
+			if ( !endp || *endp || (radix != 2 && radix != 8 && radix != 10 && radix != 16))
+			{
+				fprintf(stderr,"Invalid argument to --radix: '%s' (can only be 2, 8, 10 or 16)\n", optarg);
+				return 1;
+			}
+			flags |= EXPRS_FLG_USE_RADIX;
 			break;
 		case OPT_HASH_SIZE:
 		case 's':
@@ -78,6 +108,19 @@ int main(int argc, char *argv[])
 			return helpEm(argv[0]);
 		}
 	}
+	if ( verbose )
+	{
+		printf("sizeof: char=%ld, short=%ld, int=%ld, long=%ld, double=%ld, pointer=%ld, ExprsTerm_t=%ld, ExprsDef_t=%ld\n",
+			   sizeof(char),
+			   sizeof(short),
+			   sizeof(int),
+			   sizeof(long),
+			   sizeof(double),
+			   sizeof(void *),
+			   sizeof(ExprsTerm_t),
+			   sizeof(ExprsDef_t));
+			   
+	}
 	if ( testOnly )
 	{
 		return exprsTest(verbose);
@@ -87,10 +130,10 @@ int main(int argc, char *argv[])
 		char *exprs;
 		exprs = argv[optind];
 		if ( btree_size )
-			return exprsTestBtree(btree_size, exprs, verbose);
+			return exprsTestBtree(btree_size, exprs, flags, radix, verbose);
 		else if ( tblSize )
-			return exprsTestHashTbl(tblSize, exprs, verbose);
-		return exprsTestNoSym(exprs,verbose);
+			return exprsTestHashTbl(tblSize, exprs, flags, radix, verbose);
+		return exprsTestNoSym(exprs, flags, radix, verbose);
 	}
 	return helpEm(argv[0]);
 }

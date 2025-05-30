@@ -78,7 +78,7 @@
 #define QUO		CT_QUO		/* quote character */
 #define BSL		CT_BSL		/* backslash */
 
-static unsigned short cttbl[] =
+static unsigned short cttblNormal[] =
 {
     EOL, EOL, EOL, EOL, EOL, EOL, EOL, EOL,  /* NUL,SOH,STX,ETX,EOT,ENQ,ACK,BEL */
     EOL,  WS, EOL, EOL, EOL, EOL, EOL, EOL,  /* BS,HT,LF,VT,FF,CR,SO,SI */
@@ -101,15 +101,37 @@ static unsigned short cttbl[] =
     LC , LC , LC , PCX, BOP, PCX, UOP, EOL   /* x y z { | } ~ DEL */
 };
 
+static unsigned short cttblSpecial[] =
+{
+    EOL, EOL, EOL, EOL, EOL, EOL, EOL, EOL,  /* NUL,SOH,STX,ETX,EOT,ENQ,ACK,BEL */
+    EOL,  WS, EOL, EOL, EOL, EOL, EOL, EOL,  /* BS,HT,LF,VT,FF,CR,SO,SI */
+    EOL, EOL, EOL, EOL, EOL, EOL, EOL, EOL,  /* DLE,DC1,DC2,DC3,DC4,NAK,SYN,ETB */
+    EOL, EOL, EOL, EOL, EOL, EOL, EOL, EOL,  /* CAN,EM,SUB,ESC,FS,GS,RS,US */
+
+    WS , EXP, QUO, PCX,XALP, EXP, BOP, QUO,  /*   ! " # $ % & ' */
+    UOP, UOP, BOP, EXP, COM, EXP, DOT, BOP,  /* ( ) * + , - . / */
+    NUM, NUM, NUM, NUM, NUM, NUM, NUM, NUM,  /* 0 1 2 3 4 5 6 7 */
+    NUM, NUM, PCX, SMC, UOP, BOP, UOP, BOP,  /* 8 9 : ; < = > ? */
+
+    PCX, HEX, HEX, HEX, HEX, HEX, HEX, ALP,  /* @ A B C D E F G */
+    ALP, ALP, ALP, ALP, ALP, ALP, ALP, ALP,  /* H I J K L M N O */
+    ALP, ALP, ALP, ALP, ALP, ALP, ALP, ALP,  /* P Q R S T U V W */
+    ALP, ALP, ALP, PCX, BSL, PCX, EXP,XALP,  /* X Y Z [ \ ] ^ _ */
+
+    QUO,LHEX,LHEX,LHEX,LHEX,LHEX,LHEX, LC ,  /* ` a b c d e f g */
+    LC , LC , LC , LC , LC , LC , LC , LC ,  /* h i j k l m n o */
+    LC , LC , LC , LC , LC , LC , LC , LC ,  /* p q r s t u v w */
+    LC , LC , LC , BOP, BOP, BOP, UOP, EOL   /* x y z { | } ~ DEL */
+};
+
 typedef unsigned char bool;
 enum
 {
 	false,
 	true
 };
-typedef unsigned char Precedence_t;
 /* This establishes the precedence of the various operators. */
-static const Precedence_t Precedence[] =
+static const ExprsPrecedence_t PrecedenceNormal[] =
 {
 	10,	/* EXPRS_TERM_NULL, */
 	10,	/* EXPRS_TERM_LINK,  *//* link to another stack */
@@ -122,6 +144,9 @@ static const Precedence_t Precedence[] =
 	9,	/* EXPRS_TERM_MINUS, *//* - (unary term) */
 	8,	/* EXPRS_TERM_COM,	 *//* ~ */
 	8,	/* EXPRS_TERM_NOT,	 *//* ! */
+	8,	/* EXPRS_TERM_HIGH_BYTE *//* */
+	8,	/* EXPRS_TERM_LOW_BYTE *//* */
+	8,	/* EXPRS_TERM_XCHG	 *//*    */
 	7,	/* EXPRS_TERM_POW,	 *//* ** */
 	6,	/* EXPRS_TERM_MUL,	 *//* * */
 	6,	/* EXPRS_TERM_DIV,	 *//* / */
@@ -141,6 +166,44 @@ static const Precedence_t Precedence[] =
 	2,	/* EXPRS_TERM_OR,	 *//* | */
 	1,	/* EXPRS_TERM_LAND,	 *//* && */
 	1,	/* EXPRS_TERM_LOR,	 *//* || */
+	0,	/* EXPRS_TERM_ASSIGN,*//* = */
+};
+
+static const ExprsPrecedence_t PrecedenceNone[] =
+{
+	10,	/* EXPRS_TERM_NULL, */
+	10,	/* EXPRS_TERM_LINK,  *//* link to another stack */
+	10,	/* EXPRS_TERM_SYMBOL, *//* Symbol */
+	10,	/* EXPRS_TERM_FUNCTION, *//* Function call */
+	10,	/* EXPRS_TERM_STRING, *//* Text string */
+	10,	/* EXPRS_TERM_FLOAT, *//* 64 bit floating point number */
+	10,	/* EXPRS_TERM_INTEGER, *//* 64 bit integer number */
+	9,	/* EXPRS_TERM_PLUS,  *//* + (unary term) */
+	9,	/* EXPRS_TERM_MINUS, *//* - (unary term) */
+	8,	/* EXPRS_TERM_COM,	 *//* ~ */
+	8,	/* EXPRS_TERM_NOT,	 *//* ! */
+	8,	/* EXPRS_TERM_HIGH_BYTE *//* */
+	8,	/* EXPRS_TERM_LOW_BYTE *//* */
+	8,	/* EXPRS_TERM_XCHG	 *//*    */
+	7,	/* EXPRS_TERM_POW,	 *//* ** */
+	7,	/* EXPRS_TERM_MUL,	 *//* * */
+	7,	/* EXPRS_TERM_DIV,	 *//* / */
+	7,	/* EXPRS_TERM_MOD,	 *//* % */
+	7,	/* EXPRS_TERM_ADD,	 *//* + (binary terms) */
+	7,	/* EXPRS_TERM_SUB,	 *//* - (binary terms) */
+	7,	/* EXPRS_TERM_ASL,	 *//* << */
+	7,	/* EXPRS_TERM_ASR,	 *//* >> */
+	7,	/* EXPRS_TERM_GT,	 *//* > */
+	7,	/* EXPRS_TERM_GE,	 *//* >= */
+	7,	/* EXPRS_TERM_LT,	 *//* < */
+	7,	/* EXPRS_TERM_LE,	 *//* <= */
+	7,	/* EXPRS_TERM_EQ,	 *//* == */
+	7,	/* EXPRS_TERM_NE,	 *//* != */
+	7,	/* EXPRS_TERM_AND,	 *//* & */
+	7,	/* EXPRS_TERM_XOR,	 *//* ^ */
+	7,	/* EXPRS_TERM_OR,	 *//* | */
+	7,	/* EXPRS_TERM_LAND,	 *//* && */
+	7,	/* EXPRS_TERM_LOR,	 *//* || */
 	0,	/* EXPRS_TERM_ASSIGN,*//* = */
 };
 
@@ -174,6 +237,9 @@ static char *showTermType(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm_t *te
 		case EXPRS_TERM_MINUS:
 		case EXPRS_TERM_COM:
 		case EXPRS_TERM_NOT:
+		case EXPRS_TERM_HIGH_BYTE:
+		case EXPRS_TERM_LOW_BYTE:
+		case EXPRS_TERM_XCHG:
 		case EXPRS_TERM_POW:
 		case EXPRS_TERM_MUL:
 		case EXPRS_TERM_DIV:
@@ -193,7 +259,7 @@ static char *showTermType(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm_t *te
 		case EXPRS_TERM_OR:
 		case EXPRS_TERM_LAND:
 		case EXPRS_TERM_LOR:
-			snprintf(dst, dstLen, "Operator: %s (precedence %d)", term->term.oper, Precedence[term->termType]);
+			snprintf(dst, dstLen, "Operator: %s (precedence %d)", term->term.oper, exprs->precedencePtr[term->termType]);
 			break;
 		case EXPRS_TERM_ASSIGN:
 			snprintf(dst, dstLen, "Assignment: %s", term->term.oper);
@@ -233,11 +299,73 @@ static ExprsStack_t *getNextStack(ExprsDef_t *exprs)
 	return ans;
 }
 
-int libExprsSetVerbose(ExprsDef_t *exprs, int newVal)
+ExprsErrs_t libExprsSetVerbose(ExprsDef_t *exprs, unsigned int newVal, unsigned int *oldValP)
 {
-	int oldVal = exprs->mVerbose;
+	ExprsErrs_t err;
+	unsigned int oldVal;
+	if ( (err=libExprsLock(exprs)) )
+		return err;
+	oldVal = exprs->mVerbose;
 	exprs->mVerbose = newVal;
-	return oldVal;
+	libExprsUnlock(exprs);
+	if ( oldValP )
+		*oldValP = oldVal;
+	return EXPR_TERM_GOOD;
+}
+
+ExprsErrs_t libExprsSetFlags(ExprsDef_t *exprs, unsigned long newVal, unsigned long *oldValP)
+{
+	ExprsErrs_t err;
+	unsigned long oldVal;
+	if ( (err=libExprsLock(exprs)) )
+		return err;
+	oldVal = exprs->mFlags;
+	exprs->mFlags = newVal;
+	libExprsUnlock(exprs);
+	if ( oldValP )
+		*oldValP = oldVal;
+	return EXPR_TERM_GOOD;
+}
+
+ExprsErrs_t libExprsSetRadix(ExprsDef_t *exprs, int newVal, int *oldValP)
+{
+	ExprsErrs_t err;
+	int oldVal;
+	if ( (err=libExprsLock(exprs)) )
+		return err;
+	oldVal = exprs->mRadix;
+	if ( newVal == 0 || newVal == 2 || newVal == 8 || newVal == 10 || newVal == 16 )
+		exprs->mRadix = newVal;
+	libExprsUnlock(exprs);
+	if ( oldValP )
+		*oldValP = oldVal;
+	return EXPR_TERM_GOOD;
+}
+
+ExprsErrs_t libExprsSetOpenDelimiter(ExprsDef_t *exprs, char newVal, char *oldValP)
+{
+	ExprsErrs_t err;
+	int oldVal;
+	if ( (err=libExprsLock(exprs)) )
+		return err;
+	oldVal = exprs->mOpenDelimiter;
+	libExprsUnlock(exprs);
+	if ( oldValP )
+		*oldValP = oldVal;
+	return EXPR_TERM_GOOD;
+}
+
+ExprsErrs_t libExprsSetCloseDelimiter(ExprsDef_t *exprs, char newVal, char *oldValP)
+{
+	ExprsErrs_t err;
+	int oldVal;
+	if ( (err=libExprsLock(exprs)) )
+		return err;
+	oldVal = exprs->mOpenDelimiter;
+	libExprsUnlock(exprs);
+	if ( oldValP )
+		*oldValP = oldVal;
+	return EXPR_TERM_GOOD;
 }
 
 static void reset(ExprsDef_t *exprs)
@@ -296,6 +424,9 @@ static void dumpStacks(ExprsDef_t *exprs)
 			case EXPRS_TERM_MINUS:	/* - */
 			case EXPRS_TERM_COM:	/* ~ */
 			case EXPRS_TERM_NOT:	/* ! */
+			case EXPRS_TERM_HIGH_BYTE:	/* high byte */
+			case EXPRS_TERM_LOW_BYTE:	/* low byte */
+			case EXPRS_TERM_XCHG:	/* exchange bytes */
 			case EXPRS_TERM_POW:	/* ** */
 			case EXPRS_TERM_MUL:	/* * */
 			case EXPRS_TERM_DIV:	/* / */
@@ -325,16 +456,244 @@ static void dumpStacks(ExprsDef_t *exprs)
 	}
 }
 
+static ExprsErrs_t badSyntax(ExprsDef_t *exprs, unsigned short chMask, char cc, ExprsErrs_t retErr)
+{
+	char eBuf[256];
+	snprintf(eBuf,sizeof(eBuf),"parseExpression(): Syntax error. cc='%c', chMask=0x%04X\n", isprint(cc)?cc:'.',chMask);
+	showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
+	/* Not something we know how to handle */
+	return retErr;
+}
+
+static int storeInteger(ExprsDef_t *exprs,
+					   ExprsStack_t *sPtr,
+					   ExprsTerm_t *term,
+					   const char *startP,
+					   int topOper,
+					   char suffix,
+					   bool eatSuffix,
+					   bool *lastTermWasOperatorP,
+					   int radix,
+					   const char *rdxName )
+{
+	char *sEndp;
+	char eBuf[512];
+
+	sEndp = NULL;
+	term->term.s64 = strtoll(startP,&sEndp,radix);
+	if ( !sEndp || (eatSuffix && toupper(*sEndp) != suffix) )
+		return EXPR_TERM_BAD_NUMBER;
+	if ( exprs->mVerbose )
+	{
+		snprintf(eBuf,sizeof(eBuf),"parseExpression().storeInteger(): Pushed to terms[%ld][%d] a %s Integer %ld. topOper=%d, flags=0x%lX, radix=%d.\n",
+				 sPtr-exprs->mStacks, sPtr->mNumTerms, rdxName, term->term.s64, topOper, exprs->mFlags, radix);
+		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+	}
+	if ( eatSuffix )
+		++sEndp;
+	exprs->mCurrPtr = sEndp;
+	term->termType = EXPRS_TERM_INTEGER;
+	*lastTermWasOperatorP = false;
+	++sPtr->mNumTerms;
+	return 0;
+}
+
+static ExprsErrs_t handleString(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm_t *term, char cc )
+{
+	int strLen;
+	const char *endP;
+	char *sEndP, quoteChar = cc, *dst;
+	unsigned short chMask;
+	char eBuf[512];
+	
+	if ( (exprs->mFlags & (EXPRS_FLG_NO_STRING|EXPRS_FLG_SINGLE_QUOTE)) )
+	{
+		if ( cc == '"' || !(exprs->mFlags&EXPRS_FLG_SINGLE_QUOTE))
+			return EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED;
+		strLen = 1;		/* can only have a single character in this type of string */
+	}
+	else
+	{
+		endP = exprs->mCurrPtr + 1;       /* Skip starting quote char */
+		/* find end of string */
+		while ( (cc = *endP) )
+		{
+			chMask = cttblNormal[(int)cc];
+			if ( (chMask&CT_EOL) )
+			{
+				return EXPR_TERM_BAD_NO_STRING_TERM;
+			}
+			++endP;
+			if ( cc == '\\' )
+				++endP;
+			else if ( cc == quoteChar )
+				break;
+		}
+		strLen = endP-exprs->mCurrPtr;
+	}
+	if ( !(term->term.string = getStringMem(exprs,strLen+1)) )
+		return EXPR_TERM_BAD_OUT_OF_MEMORY;
+	term->term.string[strLen] = 0;
+	endP = exprs->mCurrPtr+1;		/* Skip starting quote char */
+	dst = term->term.string;
+	while ( (cc = *endP) && dst < term->term.string+strLen )
+	{
+		chMask = cttblNormal[(int)cc];
+		if ( (chMask&CT_EOL) )
+			break;
+		if ( cc == '\\' )
+		{
+			unsigned char cvt;
+			cc = endP[1];
+			cvt = cc;
+			if ( cc >= '0' && cc <= '7' )
+			{
+				cvt = cc-'0';
+				cc = endP[2];
+				if ( cc >= '0' && cc <= '7' )
+				{
+					cvt <<= 3;
+					cvt |= cc-'0';
+					cc = endP[3];
+					if ( cc >= '0' && cc <= '7' )
+					{
+						cvt <<= 3;
+						cvt |= cc-'0';
+						++endP;
+					}
+					++endP;
+				}
+			}
+			else if ( cc == 'x' )
+			{
+				sEndP=NULL;
+				cvt = strtol(endP+1,&sEndP,16);
+				if ( sEndP )
+				{
+					*dst++ = cvt;
+					endP = sEndP;
+					continue;
+				}
+				cvt = cc;
+			}
+			else if ( cc == 'n' )
+				cvt = '\n';
+			else if ( cc == 'r' )
+				cvt = '\r';
+			else if ( cc == 't' )
+				cvt = '\t';
+			else if ( cc == 'f' )
+				cvt = '\f';
+			else if ( cc == 'a' )
+				cvt = '\a';
+			else if ( cc == 'b' )
+				cvt = '\b';
+			else if ( cc == 'e' )
+				cvt = '\033';
+			else if ( cc == 't' )
+				cvt = '\t';
+			else if ( cc == 'v' )
+				cvt = '\v';
+			endP += 2;		/* eat both the '\' and the following character */
+			*dst++ = cvt;
+			continue;
+		}
+		if ( cc == quoteChar )
+		{
+			++endP;			/* Eat terminator */
+			break;
+		}
+		*dst++ = *endP++;	/* copy the char */
+	}
+	*dst = 0;			/* null terminate the string */
+	if ( (exprs->mFlags&EXPRS_FLG_SINGLE_QUOTE) )
+	{
+		/* optionally eat a trailing quote */
+		if ( *endP == '\'' )
+			++endP;
+		cc = term->term.string[0];
+		term->term.s64 = cc;
+		term->termType = EXPRS_TERM_INTEGER;
+		++sPtr->mNumTerms;
+		exprs->mCurrPtr = endP;
+		if ( exprs->mVerbose )
+		{
+			snprintf(eBuf,sizeof(eBuf),"parseExpression().handleString(): Pushed to terms[%ld][%d] a string character=0x%02lX ('%c')\n",
+					 sPtr-exprs->mStacks,sPtr->mNumTerms,term->term.s64,isprint(cc)?cc:'.');
+			showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+		}
+		return EXPR_TERM_GOOD;
+	}
+	if ( exprs->mVerbose )
+	{
+		snprintf(eBuf,sizeof(eBuf),"parseExpression().handleString(): Pushed to terms[%ld][%d] a string='%s'\n", sPtr-exprs->mStacks,sPtr->mNumTerms,term->term.string);
+		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+	}
+	term->termType = EXPRS_TERM_STRING;
+	++sPtr->mNumTerms;
+	exprs->mCurrPtr = endP;
+	return (cc == quoteChar) ? EXPR_TERM_GOOD : EXPR_TERM_BAD_NO_STRING_TERM;
+}
+
+
+static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWasOperator, ExprsStack_t *sPtr);
+
+static ExprsErrs_t openNewStack(ExprsDef_t *exprs, int nest, ExprsTerm_t *term, ExprsStack_t *sPtr, bool *lastTermWasOperatorP)
+{
+	ExprsErrs_t err;
+	ExprsStack_t *nPtr = getNextStack(exprs);
+	if ( !nPtr )
+		return EXPR_TERM_BAD_TOO_MANY_TERMS;
+	term->termType = EXPRS_TERM_LINK;
+	term->term.link = nPtr;
+	++sPtr->mNumTerms;
+	++exprs->mCurrPtr;
+	err = parseExpression(exprs,nest+1,*lastTermWasOperatorP,nPtr); 
+	if ( err )
+		return err;
+	*lastTermWasOperatorP = false;
+	return EXPR_TERM_GOOD;
+}
+
+/** parseExpression - parse the text of the expression
+ *  At entry:
+ *  @param exprs - pointer to ExprsDef_t returned from
+ *  			 libExprsInit()
+ *  @param nest - the expression nest level
+ *  @param lastTermWasOperator - indicates the last term
+ *  						   encountered was an expression
+ *  						   operator
+ *  @param sPtr - pointer to stack into which to build
+ *  			expression.
+ *  At exit:
+ *  @return - error code (0 == no error)
+ *
+ *  Theory of operation. The text is walked through skipping
+ *  white space. As an item is encountered it is decoded as
+ *  being a simple term (number or symbol) or an operator. The
+ *  operator can be either a "unary" or a "binary". A unary
+ *  operator applies directly to the term immediately folling it
+ *  (i.e. a '+', '-', etc.) and a binary operator does something
+ *  with two terms: the one previously encountered and the one
+ *  following (i.e. a+b, etc). Simple terms are "pushed" onto a
+ *  stack as they are encountered. Operators have an execution
+ *  precedence assigned to them. As operators are encountered
+ *  they are pushed onto a stack separate from the one simple
+ *  terms use, however, before that's done, the new operator's
+ *  precedence is compared against what is currently in the
+ *  operator stack, and the entry is sorted appropriately.
+ **/
 static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWasOperator, ExprsStack_t *sPtr)
 {
-	unsigned short chMask=CT_EOL;
+	unsigned short chMask=CT_EOL, *chMaskPtr;
 	char cc, *operPtr, *sEndp;
 	const char *startP, *endP;
 	ExprsTerm_t *term;
-	ExprsErrs_t err;
+	ExprsErrs_t err, peRetV;
 	int topOper = -1; /* top of operator stack */
 	bool exitOut=false;
 	char eBuf[512];
+	int retV;
 	
 	if ( exprs->mVerbose )
 	{
@@ -343,14 +702,16 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 	}
 	if ( sPtr->mNumTerms >= exprs->mNumAvailTerms )
 		return EXPR_TERM_BAD_TOO_MANY_TERMS;
-	while ( (cc = *exprs->mCurrPtr) )
+	chMaskPtr = (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) ? cttblSpecial : cttblNormal;
+	peRetV = EXPR_TERM_GOOD;	
+	while ( 1 )
 	{
-		chMask = cttbl[(int)cc];
+		cc = *exprs->mCurrPtr;
+		chMask = chMaskPtr[(int)cc];
 		if ( (chMask&(CT_EOL|CT_COM|CT_SMC)) )
 		{
-			if ( topOper >= 0 )
-				break;
-			return EXPR_TERM_END;
+			peRetV = EXPR_TERM_END;
+			break;
 		}
 		if ( (chMask&CT_WS) )
 		{
@@ -360,10 +721,7 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		}
 		if ( !(chMask&(CT_EALP|CT_NUM|CT_OPER|CT_QUO)) )
 		{
-			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Syntax error. cc='%c', chMask=0x%04X\n", isprint(cc)?cc:'.',chMask);
-			showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
-			/* Not something we know how to handle */
-			return EXPR_TERM_BAD_SYNTAX;
+			return badSyntax(exprs, chMask, cc, EXPR_TERM_BAD_SYNTAX);
 		}
 		if ( exprs->mVerbose )
 		{
@@ -371,115 +729,25 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 					 sPtr - exprs->mStacks, sPtr->mNumTerms, isprint(cc) ? cc : '.', chMask, lastTermWasOperator, exprs->mCurrPtr);
 			showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		}
+		/*  */
+		if ( (exprs->mFlags & EXPRS_FLG_WS_DELIMIT) && !lastTermWasOperator && sPtr->mNumTerms )
+		{
+			if ( (chMask & (CT_EALP | CT_NUM | CT_QUO)) || cc == exprs->mOpenDelimiter )
+			{
+				peRetV = EXPR_TERM_END;
+				break;
+			}
+		}
 		term = sPtr->mTerms + sPtr->mNumTerms;
 		term->term.s64 = 0;
 		term->termType = EXPRS_TERM_NULL;
 		term->chrPtr = exprs->mCurrPtr;
 		if ( (chMask & CT_QUO) )
 		{
-			/* quoted string */
-			int strLen;
-			char quoteChar = cc, *dst;
-			
-			endP = exprs->mCurrPtr+1;		/* Skip starting quote char */
-			while ( (cc = *endP) )
-			{
-				chMask = cttbl[(int)cc];
-				if ( (chMask&CT_EOL) )
-				{
-					return EXPR_TERM_BAD_NO_STRING_TERM;
-				}
-				++endP;
-				if ( cc == '\\' )
-					++endP;
-				else if ( cc == quoteChar )
-					break;
-			}
-			strLen = endP-exprs->mCurrPtr;
-			if ( !(term->term.string = getStringMem(exprs,strLen+1)) )
-				return EXPR_TERM_BAD_OUT_OF_MEMORY;
-			term->term.string[strLen] = 0;
-			endP = exprs->mCurrPtr+1;		/* Skip starting quote char */
-			dst = term->term.string;
-			while ( (cc = *endP) )
-			{
-				chMask = cttbl[(int)cc];
-				if ( (chMask&CT_EOL) )
-					return EXPR_TERM_BAD_NO_STRING_TERM;
-				if ( cc == '\\' )
-				{
-					unsigned char cvt;
-					cc = endP[1];
-					cvt = cc;
-					if ( cc >= '0' && cc <= '7' )
-					{
-						cvt = cc-'0';
-						cc = endP[2];
-						if ( cc >= '0' && cc <= '7' )
-						{
-							cvt <<= 3;
-							cvt |= cc-'0';
-							cc = endP[3];
-							if ( cc >= '0' && cc <= '7' )
-							{
-								cvt <<= 3;
-								cvt |= cc-'0';
-								++endP;
-							}
-							++endP;
-						}
-					}
-					else if ( cc == 'x' )
-					{
-						sEndp=NULL;
-						cvt = strtol(endP+1,&sEndp,16);
-						if ( sEndp )
-						{
-							*dst++ = cvt;
-							endP = sEndp;
-							continue;
-						}
-						cvt = cc;
-					}
-					else if ( cc == 'n' )
-						cvt = '\n';
-					else if ( cc == 'r' )
-						cvt = '\r';
-					else if ( cc == 't' )
-						cvt = '\t';
-					else if ( cc == 'f' )
-						cvt = '\f';
-					else if ( cc == 'a' )
-						cvt = '\a';
-					else if ( cc == 'b' )
-						cvt = '\b';
-					else if ( cc == 'e' )
-						cvt = '\033';
-					else if ( cc == 't' )
-						cvt = '\t';
-					else if ( cc == 'v' )
-						cvt = '\v';
-					endP += 2;		/* eat both the '\' and the following character */
-					*dst++ = cvt;
-					continue;
-				}
-				if ( cc == quoteChar )
-				{
-					++endP;			/* Eat terminator */
-					break;
-				}
-				*dst++ = *endP++;
-			}
-			*dst = 0;
-			if ( exprs->mVerbose )
-			{
-				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a string='%s'\n", sPtr-exprs->mStacks,sPtr->mNumTerms,term->term.string);
-				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
-			}
-/*			memcpy(term->term.string,mCurrPtr,strLen); */
-			term->termType = EXPRS_TERM_STRING;
-			++sPtr->mNumTerms;
-			exprs->mCurrPtr = endP;
+			/* possibly a quoted string */
+			err = handleString(exprs,sPtr,term,cc);
+			if ( err )
+				return err;
 			lastTermWasOperator = false;
 			continue;
 		}
@@ -491,7 +759,7 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			endP = exprs->mCurrPtr;
 			while ( (cc = *endP) )
 			{
-				chMask = cttbl[(int)cc];
+				chMask = cttblNormal[(int)cc];
 				if ( !(chMask&(CT_EALP|CT_NUM))  )
 					break;
 				++endP;
@@ -521,69 +789,90 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			{
 				if ( exprs->mCurrPtr[1] == 'x' || exprs->mCurrPtr[1] == 'X' )
 				{
-					char *sEndp;
-					sEndp = NULL;
-					term->term.s64 = strtoll(startP,&sEndp,16);
-					if ( !sEndp )
-						return EXPR_TERM_BAD_NUMBER;
-					if ( exprs->mVerbose )
-					{
-						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a HEX Integer %ld. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper);
-						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
-					}
-					endP = sEndp;
-					exprs->mCurrPtr = endP;
-					term->termType = EXPRS_TERM_INTEGER;
-					lastTermWasOperator = false;
-					++sPtr->mNumTerms;
+					startP += 2;
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,16,"HEX");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
 					continue;
 				}
-				if ( exprs->mCurrPtr[1] == 'd' || exprs->mCurrPtr[1] == 'D' )
+				if ( exprs->mCurrPtr[1] == 'o' || exprs->mCurrPtr[1] == 'O' )
 				{
 					startP += 2;
-					sEndp = NULL;
-					term->term.s64 = strtoll(startP,&sEndp,10);
-					if ( !sEndp )
-						return EXPR_TERM_BAD_NUMBER;
-					endP = sEndp;
-					if ( exprs->mVerbose )
-					{
-						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a DECIMAL Integer %ld. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper);
-						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
-					}
-					exprs->mCurrPtr = endP;
-					term->termType = EXPRS_TERM_INTEGER;
-					lastTermWasOperator = false;
-					++sPtr->mNumTerms;
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,8,"Octal");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
 					continue;
 				}
-				if ( exprs->mCurrPtr[1] == 'b' || exprs->mCurrPtr[1] == 'B' )
+				if ( exprs->mRadix != 16 )
 				{
-					char *sEndp;
-					startP += 2;
-					sEndp = NULL;
-					term->term.s64 = strtoll(startP,&sEndp,2);
-					if ( !sEndp )
-						return EXPR_TERM_BAD_NUMBER;
-					if ( exprs->mVerbose )
+					if ( exprs->mCurrPtr[1] == 'd' || exprs->mCurrPtr[1] == 'D' )
 					{
-						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a binary Integer %ld. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper);
-						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+						startP += 2;
+						retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,10,"Decimal");
+						if ( retV )
+							return badSyntax(exprs,chMask,cc,retV);
+						continue;
 					}
-					endP = sEndp;
-					exprs->mCurrPtr = endP;
-					term->termType = EXPRS_TERM_INTEGER;
-					lastTermWasOperator = false;
-					++sPtr->mNumTerms;
-					continue;
+					if ( exprs->mCurrPtr[1] == 'b' || exprs->mCurrPtr[1] == 'B' )
+					{
+						startP += 2;
+						retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,2,"Binary");
+						if ( retV )
+							return badSyntax(exprs,chMask,cc,retV);
+						continue;
+					}
 				}
 			}
 			sEndp = NULL;
-			term->term.s64 = strtoll(startP,&sEndp,0);
+			if ( (exprs->mFlags & (EXPRS_FLG_DOLLAR_HEX | EXPRS_FLG_H_HEX)) && exprs->mRadix != 16 )
+			{
+				/* try the number using hex to see if a 'H' or '$' follows */
+				term->term.s64 = strtoul(startP,&sEndp,16);
+				if ( !sEndp )
+					return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_NUMBER);
+				cc = toupper(*sEndp);
+				if (    ((exprs->mFlags&EXPRS_FLG_DOLLAR_HEX) && cc == '$')
+					 || ((exprs->mFlags&EXPRS_FLG_H_HEX) && cc == 'H')
+				   )
+				{
+					/* yep, legit */
+					retV = storeInteger(exprs, sPtr, term, startP, topOper, cc, true, &lastTermWasOperator, 16, "Hex");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
+					continue;
+				}
+			}
+ 			if ( (exprs->mFlags & (EXPRS_FLG_O_OCTAL | EXPRS_FLG_Q_OCTAL)) && exprs->mRadix != 8 )
+			{
+				/* try the number using octal to see if a 'O' or 'Q' follows */
+				term->term.s64 = strtoul(startP,&sEndp,8);
+				if ( !sEndp )
+					return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_NUMBER);
+				cc = toupper(*sEndp);
+				if (    ((exprs->mFlags&EXPRS_FLG_O_OCTAL) && cc == 'O')
+					 || ((exprs->mFlags&EXPRS_FLG_Q_OCTAL) && cc == 'Q')
+				   )
+				{
+					/* yep, legit */
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,cc,true,&lastTermWasOperator,8,"Octal");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
+					continue;
+				}
+			}
+			/* not a number with a 'H' or '$' or 'O' or 'Q' suffix */
+			term->term.s64 = strtoul(startP, &sEndp, (exprs->mFlags & EXPRS_FLG_USE_RADIX) ? exprs->mRadix : 0);
 			if ( !sEndp )
-				return EXPR_TERM_BAD_NUMBER;
+				return badSyntax(exprs,chMask,cc,EXPR_TERM_BAD_NUMBER);
+			if ( (exprs->mFlags&EXPRS_FLG_NO_FLOAT) && *sEndp == '.' && exprs->mRadix != 10 )
+			{
+				retV = storeInteger(exprs,sPtr,term,startP,topOper,'.',true,&lastTermWasOperator,10,"Decimal");
+				if ( retV )
+					return badSyntax(exprs,chMask,cc,retV);
+				continue;
+			}
 			endP = sEndp;
-			if ( *endP == '.' || (*endP == 'e' || *endP == 'E'))
+			if ( !(exprs->mFlags&EXPRS_FLG_NO_FLOAT) && (*endP == '.' || (*endP == 'e' || *endP == 'E')) )
 			{
 				sEndp = NULL;
 				term->term.f64 = strtod(startP,&sEndp);
@@ -604,7 +893,8 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			}
 			if ( exprs->mVerbose )
 			{
-				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a plain Integer %ld. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper);
+				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a plain Integer %ld. topOper=%d. mFlags=0x%lX, mRadix=%d\n",
+						 sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper, exprs->mFlags, exprs->mRadix);
 				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 			}
 			exprs->mCurrPtr = endP;
@@ -613,25 +903,16 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			lastTermWasOperator = false;
 			continue;
 		}
-		operPtr = term->term.oper;
-		switch (cc)
+		if ( cc == exprs->mOpenDelimiter )
 		{
-		case '(':
-			{
-				ExprsStack_t *nPtr = getNextStack(exprs);
-				if ( !nPtr )
-					return EXPR_TERM_BAD_TOO_MANY_TERMS;
-				term->termType = EXPRS_TERM_LINK;
-				term->term.link = nPtr;
-				++sPtr->mNumTerms;
-				++exprs->mCurrPtr;
-				err = parseExpression(exprs,nest+1,lastTermWasOperator,nPtr); 
-				if ( err )
-					return err;
-				lastTermWasOperator = false;
-			}
+			/* recurse stuff new expression into new stack */
+			err = openNewStack(exprs, nest, term, sPtr, &lastTermWasOperator);
+			if ( err )
+				return err;
 			continue;
-		case ')':
+		}
+		if ( cc == exprs->mCloseDelimiter )
+		{
 			if ( nest < 1 )
 			{
 				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Syntax error. cc='%c', chMask=0x%04X, nest=%d\n", isprint(cc)?cc:'.',chMask,nest);
@@ -641,6 +922,12 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			--nest;
 			++exprs->mCurrPtr;
 			exitOut = true;
+			cc = 0;		/* force following switch() to do nothing */
+		}
+		operPtr = term->term.oper;
+		switch (cc)
+		{
+		case 0:
 			break;
 		case '+':
 			term->termType = lastTermWasOperator ? EXPRS_TERM_PLUS : EXPRS_TERM_ADD;
@@ -654,6 +941,8 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			*operPtr++ = cc;
 			if ( exprs->mCurrPtr[1] == '*' )
 			{
+				if ( (exprs->mFlags&EXPRS_FLG_NO_POWER) )
+					return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_SYNTAX);
 				term->termType = EXPRS_TERM_POW;
 				*operPtr++ = cc;
 				++exprs->mCurrPtr;
@@ -692,37 +981,115 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 				term->termType = EXPRS_TERM_AND;
 			break;
 		case '^':
+			if ( (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
+			{
+				cc = exprs->mCurrPtr[1];
+				cc = toupper(cc);
+				exprs->mCurrPtr += 2;
+				startP = exprs->mCurrPtr;
+				switch(cc)
+				{
+				case 'B':
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,2,"Binary");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
+					break;
+				case 'C':
+					term->termType = EXPRS_TERM_COM;
+					*operPtr++ = '~';
+					break;
+				case 'D':
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,10,"Decimal");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
+					break;
+				case 'X':
+				case 'H':
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,16,"Hex");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
+					break;
+				case 'O':
+					retV = storeInteger(exprs,sPtr,term,startP,topOper,0,false,&lastTermWasOperator,8,"Octal");
+					if ( retV )
+						return badSyntax(exprs,chMask,cc,retV);
+					break;
+				case 'V':
+					term->termType = EXPRS_TERM_LOW_BYTE;
+					*operPtr++ = '^';
+					*operPtr++ = 'V';
+					break;
+				case '~':
+					term->termType = EXPRS_TERM_XCHG;
+					*operPtr++ = '^';
+					*operPtr++ = '~';
+					break;
+				case '^':
+					term->termType = EXPRS_TERM_HIGH_BYTE;
+					*operPtr++ = '^';
+					*operPtr++ = '^';
+					break;
+				default:
+					return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_SYNTAX);
+				}
+				break;
+			}
 			term->termType = EXPRS_TERM_XOR;
 			*operPtr++ = cc;
+			break;
+		case '?':
+			if ( (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
+			{
+				term->termType = EXPRS_TERM_XOR;
+				*operPtr++ = cc;
+			}
+			else
+				badSyntax(exprs,chMask,cc,EXPR_TERM_BAD_SYNTAX);
 			break;
 		case '~':
 			term->termType = EXPRS_TERM_COM;
 			*operPtr++ = cc;
 			break;
 		case '!':
-			*operPtr++ = cc;
-			if ( exprs->mCurrPtr[1] == '=' )
+			if ( (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
 			{
-				term->termType = EXPRS_TERM_NE;
-				*operPtr++ = '=';
-				++exprs->mCurrPtr;
+				*operPtr++ = '|';
+				term->termType = EXPRS_TERM_OR;
 			}
 			else
-				term->termType = EXPRS_TERM_NOT;
+			{
+				*operPtr++ = cc;
+				if ( exprs->mCurrPtr[1] == '=' )
+				{
+					term->termType = EXPRS_TERM_NE;
+					*operPtr++ = '=';
+					++exprs->mCurrPtr;
+				}
+				else
+					term->termType = EXPRS_TERM_NOT;
+			}
 			break;
 		case '=':
 			*operPtr++ = cc;
 			if (exprs->mCurrPtr[1] == '=')
 			{
+				if ( (exprs->mFlags & EXPRS_FLG_NO_LOGICALS) )
+					return EXPR_TERM_BAD_SYNTAX;
 				term->termType = EXPRS_TERM_EQ;
 				*operPtr++ = cc;
 				++exprs->mCurrPtr;
 			}
 			else
+			{
+				if ( (exprs->mFlags & EXPRS_FLG_NO_ASSIGNMENT) )
+					return EXPR_TERM_BAD_SYNTAX;
 				term->termType = EXPRS_TERM_ASSIGN;
+			}
 			break;
 		case '<':
 			*operPtr++ = cc;
+			if ( (exprs->mFlags & EXPRS_FLG_NO_LOGICALS) )
+				return EXPR_TERM_BAD_SYNTAX;
 			if ( exprs->mCurrPtr[1] == '<' )
 			{
 				term->termType = EXPRS_TERM_ASL;
@@ -738,8 +1105,22 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			else
 				term->termType = EXPRS_TERM_LT;
 			break;
+		case '{':
+			if ( !(exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
+				return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_SYNTAX);
+			term->termType = EXPRS_TERM_ASL;
+			*operPtr++ = '<';
+			break;
+		case '}':
+			if ( !(exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
+				return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_SYNTAX);
+			term->termType = EXPRS_TERM_ASR;
+			*operPtr++ = '>';
+			break;
 		case '>':
 			*operPtr++ = cc;
+			if ( (exprs->mFlags & EXPRS_FLG_NO_LOGICALS) )
+				return badSyntax(exprs,chMask,cc, EXPR_TERM_BAD_SYNTAX);
 			if ( exprs->mCurrPtr[1] == '>' )
 			{
 				term->termType = EXPRS_TERM_ASR;
@@ -756,17 +1137,17 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 				term->termType = EXPRS_TERM_GT;
 			break;
 		default:
-			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Syntax error. cc='%c', chMask=0x%04X\n",isprint(cc)?cc:'.',chMask);
-			showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
-			return EXPR_TERM_BAD_SYNTAX;
+			if ( exitOut )
+				break;
+			return badSyntax(exprs, chMask, cc, EXPR_TERM_BAD_SYNTAX);
 		}
 		if ( exitOut )
 			break;
 		if ( operPtr != term->term.oper )
 		{
 			ExprsTerm_t savTerm = *term;
-			Precedence_t oldPrecedence,currPrecedence = Precedence[savTerm.termType];
-			*operPtr = 0;
+			ExprsPrecedence_t oldPrecedence,currPrecedence = exprs->precedencePtr[savTerm.termType];
+			*operPtr = 0;	/* null terminate the operator text string */
 			/* check for the operators of higher precedence and then add them to stack */
 			if ( exprs->mVerbose )
 			{
@@ -774,7 +1155,10 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 				dumpStacks(exprs);
 			}
-			while ( topOper >= 0 && (oldPrecedence=Precedence[sPtr->mOpers[topOper].mOperType]) >= currPrecedence )
+			/* If what is currently in the operator stack (if anything) has a higher precedence than the operator to be pushed,
+			 * then pop the item(s) off the operator stack onto the term stack. Then push the new operator onto the operator stack.
+			 */
+			while ( topOper >= 0 && (oldPrecedence = exprs->precedencePtr[sPtr->mOpers[topOper].mOperType]) >= currPrecedence )
 			{
 				term->termType = sPtr->mOpers[topOper].mOperType;
 				term->chrPtr = sPtr->mOpers[topOper].chrPtr;
@@ -798,11 +1182,13 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			sPtr->mOpers[topOper].chrPtr = term->chrPtr;
 			sPtr->mOpers[topOper].mOper[0] = term->term.oper[0];
 			sPtr->mOpers[topOper].mOper[1] = term->term.oper[1];
+			sPtr->mOpers[topOper].mOper[2] = 0;	/* make sure the string is null terminated (probably don't need this) */
 			if ( exprs->mVerbose )
 			{
 				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed operator '%s'(%d) to operators[%ld][%d]\n",term->term.oper, term->termType, sPtr-exprs->mStacks, topOper);
 				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 			}
+			/* because '+' and '-' are both unary and binary operators, they don't count worth remembering (their precendece decides for them) */
 			if ( term->termType == EXPRS_TERM_PLUS || term->termType == EXPRS_TERM_MINUS )
 				lastTermWasOperator = false;
 			else
@@ -815,10 +1201,11 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		}
 		++exprs->mCurrPtr;
 	}
+	/* reached end of expression string */
 	term = sPtr->mTerms + sPtr->mNumTerms;
+	/* pop all the operators off the operator stack onto the term stack */
 	while ( topOper >= 0 )
 	{
-		/* add remaining operators to stack */
 		ExprsOpers_t *oper = sPtr->mOpers+topOper;
 		term->termType = oper->mOperType;
 		term->chrPtr = oper->chrPtr;
@@ -840,7 +1227,7 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		dumpStacks(exprs);
 	}
-	return EXPR_TERM_GOOD;
+	return peRetV;
 }
 
 static ExprsErrs_t lookupSymbol(ExprsDef_t *exprs, ExprsTerm_t *src, ExprsTerm_t *dst)
@@ -861,6 +1248,8 @@ static ExprsErrs_t lookupSymbol(ExprsDef_t *exprs, ExprsTerm_t *src, ExprsTerm_t
 			snprintf(eBuf, sizeof(eBuf), "lookupSymbol(): Found symbol '%s' with illegal type %d.\n", src->term.string, ans.termType);
 			showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
 			return EXPR_TERM_BAD_UNSUPPORTED;
+		case EXPRS_SYM_TERM_COMPLEX:
+			return EXPR_TERM_COMPLEX_VALUE;
 		case EXPRS_SYM_TERM_STRING:
 			strLen = strlen(ans.term.string)+1;
 			if ( !(dst->term.string = getStringMem(exprs,strLen)) )
@@ -1670,6 +2059,33 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 			else
 				return EXPR_TERM_BAD_SYNTAX;
 			continue;
+		case EXPRS_TERM_LOW_BYTE:
+			if ( (err=prepUnaryTerm(&params,true)) )
+				return err;
+			if ( params.aa->termType == EXPRS_TERM_INTEGER )
+				params.aa->term.u64 = params.aa->term.u64 & 0xFF;
+			else
+				return EXPR_TERM_BAD_SYNTAX;
+			continue;
+		case EXPRS_TERM_HIGH_BYTE:
+			if ( (err=prepUnaryTerm(&params,true)) )
+				return err;
+			if ( params.aa->termType == EXPRS_TERM_INTEGER )
+				params.aa->term.u64 = (params.aa->term.u64 >> 8) & 0xFF;
+			else
+				return EXPR_TERM_BAD_SYNTAX;
+			continue;
+		case EXPRS_TERM_XCHG:
+			if ( (err=prepUnaryTerm(&params,true)) )
+				return err;
+			if ( params.aa->termType == EXPRS_TERM_INTEGER )
+			{
+				unsigned long ul = params.aa->term.u64;
+				params.aa->term.u64 = ((ul>>8)&0xFF) | ((ul<<8)&0xFF00);
+			}
+			else
+				return EXPR_TERM_BAD_SYNTAX;
+			continue;
 		case EXPRS_TERM_ASL:	/* << */
 			if ( (err=prepBinaryTerms(&params,true)) )
 				return err;
@@ -1949,6 +2365,7 @@ static const ErrMsgs_t Errs[] =
 	{ EXPR_TERM_END, "End of text" },
 	{ EXPR_TERM_BAD_OUT_OF_MEMORY, "Out of memory" },
 	{ EXPR_TERM_BAD_NO_STRING_TERM, "Missing string terminator" },
+	{ EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED, "Strings not supported" },
 	{ EXPR_TERM_BAD_SYMBOL_SYNTAX, "Invalid symbol syntax" },
 	{ EXPR_TERM_BAD_SYMBOL_TOO_LONG, "Symbol string too long" },
 	{ EXPR_TERM_BAD_NUMBER, "Invalid number syntax" },
@@ -1984,8 +2401,8 @@ const char *libExprsGetErrorStr(ExprsErrs_t errCode)
 
 ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm, int alreadyLocked)
 {
-	ExprsErrs_t err = EXPR_TERM_BAD_SYNTAX, err2 = EXPR_TERM_GOOD;
-	char eBuf[512];
+	ExprsErrs_t peErr, err = EXPR_TERM_BAD_SYNTAX, err2 = EXPR_TERM_GOOD;
+	char eBuf[512], saveOpen=0, saveClose=0;
 	int len;
 	
 	if ( !exprs || !returnTerm )
@@ -1995,6 +2412,21 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 	returnTerm->termType = EXPRS_TERM_NULL;
 	returnTerm->term.s64 = 0;
 	returnTerm->chrPtr = NULL;
+	exprs->precedencePtr = (exprs->mFlags & EXPRS_FLG_NO_PRECEDENCE) ? PrecedenceNone : PrecedenceNormal;
+	if ( (exprs->mFlags&EXPRS_FLG_DOT_DECIMAL) || ((exprs->mFlags&EXPRS_FLG_USE_RADIX) && (exprs->mRadix != 0 && exprs->mRadix != 10)) )
+		exprs->mFlags |= EXPRS_FLG_NO_FLOAT;
+	if ( (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
+	{
+		saveOpen = exprs->mOpenDelimiter;
+		saveClose = exprs->mCloseDelimiter;
+		exprs->mOpenDelimiter = '<';
+		exprs->mCloseDelimiter = '>';
+	}
+	if ( exprs->mFlags && exprs->mVerbose )
+	{
+		snprintf(eBuf,sizeof(eBuf),"libExprsEval(): flags=0x%lX, radix=%d\n", exprs->mFlags, exprs->mRadix);
+		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+	}
 	if ( text )
 	{
 		const char *ePtr;
@@ -2005,10 +2437,15 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 		while ( exprs->mCurrPtr < ePtr && *exprs->mCurrPtr )
 		{
 			reset(exprs); 				/* Clear any existing cruft */
-			err = parseExpression(exprs, 0, true, getNextStack(exprs));
+			peErr = parseExpression(exprs, 0, true, getNextStack(exprs));
+			err = peErr;
 			if ( err <= EXPR_TERM_END )
 			{
-/*				dumpStacks(); */
+				if ( exprs->mVerbose )
+				{
+					showMsg(exprs,EXPRS_SEVERITY_INFO,"Stacks before computeViaRPN");
+					dumpStacks(exprs);
+				}
 				err = computeViaRPN(exprs, 0, exprs->mStacks, returnTerm);
 				if ( err <= EXPR_TERM_END )
 				{
@@ -2032,6 +2469,7 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 					}
 					else if ( exprs->mVerbose )
 					{
+						showMsg(exprs,EXPRS_SEVERITY_INFO,"Stacks after computeViaRPN");
 						dumpStacks(exprs);
 						snprintf(eBuf,sizeof(eBuf),"The resulting term after computing RPN expression:\n");
 						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
@@ -2065,7 +2503,17 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 					showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
 					dumpStacks(exprs);
 				}
-				++exprs->mCurrPtr;
+				if ( (exprs->mFlags & EXPRS_FLG_WS_DELIMIT) && peErr == EXPR_TERM_END )
+				{
+					if ( exprs->mVerbose )
+					{
+						snprintf(eBuf, sizeof(eBuf), "Ending text: '%s'\n", exprs->mCurrPtr);
+						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
+					}
+					break;
+				}
+				if ( *exprs->mCurrPtr )
+					++exprs->mCurrPtr;
 			}
 			else 
 			{
@@ -2080,6 +2528,11 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 			if ( err > EXPR_TERM_END )
 				break;
 		}
+	}
+	if ( (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) )
+	{
+		exprs->mOpenDelimiter = saveOpen;
+		exprs->mCloseDelimiter = saveClose;
 	}
 	if ( !alreadyLocked )
 		err2 = libExprsUnlock(exprs);
@@ -2146,7 +2599,8 @@ ExprsErrs_t libExprsSetCallbacks(ExprsDef_t *exprs, const ExprsCallbacks_t *newP
 
 	if ( !checkCallbacks(&tCallbacks,newPtr,EXPRS_SEVERITY_ERROR) )
 		return EXPR_TERM_BAD_PARAMETER;
-	*oldPtr = exprs->mCallbacks;
+	if ( oldPtr )
+		*oldPtr = exprs->mCallbacks;
 	exprs->mCallbacks = tCallbacks;
 	return EXPR_TERM_GOOD;
 }
@@ -2180,6 +2634,8 @@ ExprsDef_t* libExprsInit(const ExprsCallbacks_t *callbacks, int maxStacks, int m
 		return NULL;
 	}
 	memset(exprs, 0, sizeof(ExprsDef_t));
+	exprs->mOpenDelimiter = '(';
+	exprs->mCloseDelimiter = ')';
 	exprs->mCallbacks = tCallbacks;
 	exprs->mNumAvailStacks = maxStacks;
 	exprs->mNumAvailTerms = maxTerms;
