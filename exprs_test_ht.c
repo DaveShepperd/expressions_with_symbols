@@ -423,7 +423,7 @@ int exprsTestHashTbl(int hashTblSize, const char *expression, unsigned long flag
 				  || result.termType == EXPRS_TERM_SYMBOL
 				)
 		{
-			char quote, *cp = result.term.string;
+			char quote, *cp = libExprsStringPoolTop(exprs) + result.term.string;
 			unsigned char cc;
 			quote = strchr(cp,'"') ? '\'':'"';
 			printf("%c",quote);
@@ -444,6 +444,7 @@ int exprsTestHashTbl(int hashTblSize, const char *expression, unsigned long flag
 	printf("Symbols left in the hash table:\n");
 	libHashDump(pHashTable,tblDump,NULL);
 	libHashDestroy(pHashTable,freeEntry,NULL);
+	libExprsDestroy(exprs);
 	return retV;
 }
 

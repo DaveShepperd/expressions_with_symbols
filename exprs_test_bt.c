@@ -478,7 +478,7 @@ int exprsTestBtree(int btreeSize, const char *expression, unsigned long flags, i
 					  || result.termType == EXPRS_TERM_SYMBOL
 					)
 			{
-				char quote, *cp = result.term.string;
+				char quote, *cp = libExprsStringPoolTop(exprs) + result.term.string;
 				unsigned char cc;
 				quote = strchr(cp,'"') ? '\'':'"';
 				printf("%c",quote);
@@ -499,6 +499,7 @@ int exprsTestBtree(int btreeSize, const char *expression, unsigned long flags, i
 	}
 	if ( pBtreeTable )
 		libBtreeDestroy(pBtreeTable,freeEntry,&memStats);
+	libExprsDestroy(exprs);
 	return retV;
 }
 

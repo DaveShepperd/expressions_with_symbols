@@ -262,7 +262,7 @@ static const TestExprs_t TestExprs[] =
 	{ "<1{2>!<4}2>!<5+3>?<7>", EXPRS_TERM_INTEGER, 10, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_SPECIAL_UNARY | EXPRS_FLG_NO_PRECEDENCE },
 };
 
-static int getValue(char *buf, int bufLen, const char *title, const ExprsTerm_t *result, const TestExprs_t *tVal)
+static int getValue(ExprsDef_t *exprs, char *buf, int bufLen, const char *title, const ExprsTerm_t *result, const TestExprs_t *tVal)
 {
 	int sLen;
 	sLen = snprintf(buf,bufLen,"%s type ", title);
@@ -285,7 +285,7 @@ static int getValue(char *buf, int bufLen, const char *title, const ExprsTerm_t 
 			 sLen += snprintf(buf+sLen,bufLen-sLen,"%g", result->term.f64);
 		 else if ( result->termType == EXPRS_TERM_STRING )
 		 {
-			 char quote, *cp = result->term.string;
+			 char quote, *cp = libExprsStringPoolTop(exprs) + result->term.string;
 			 unsigned char cc;
 			 quote = strchr(cp,'"') ? '\'':'"';
 			 sLen += snprintf(buf+sLen,bufLen-sLen,"%c",quote);
@@ -352,8 +352,8 @@ int exprsTest(int verbose)
 		if ( result.termType != pExp->expectedResultType )
 		{
 			sLen  = snprintf(buf,sizeof(buf),"%3d: Type mismatch. Expression '%s' ", ii, pExp->expr);
-			sLen += getValue(buf+sLen,sizeof(buf)-sLen, "expected",NULL,pExp);
-			sLen += getValue(buf+sLen,sizeof(buf)-sLen, ". Got ",&result,NULL);
+			sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, "expected",NULL,pExp);
+			sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, ". Got ",&result,NULL);
 			printf("%s\n",buf);
 		}
 		else
@@ -370,7 +370,7 @@ int exprsTest(int verbose)
 					diff = 1;
 				break;
 			case EXPRS_TERM_STRING:
-				if ( strcmp(pExp->expectedString,result.term.string) )
+				if ( strcmp(pExp->expectedString, libExprsStringPoolTop(exprs) + result.term.string) )
 					diff = 1;
 				break;
 			case EXPRS_TERM_NULL:
@@ -384,8 +384,8 @@ int exprsTest(int verbose)
 			if ( diff )
 			{
 				sLen = snprintf(buf, sizeof(buf), "%3d: Value mismatch. Expression '%s' ", ii, pExp->expr);
-				sLen += getValue(buf+sLen,sizeof(buf)-sLen, "expected",NULL,pExp);
-				sLen += getValue(buf+sLen,sizeof(buf)-sLen, ". Got ",&result,NULL);
+				sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, "expected",NULL,pExp);
+				sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, ". Got ",&result,NULL);
 				printf("%s\n",buf);
 				retV = 1;
 			}

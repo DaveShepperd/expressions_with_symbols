@@ -72,7 +72,7 @@ int exprsTestNoSym(const char *expression, unsigned long flags, int radix, int v
 				  || result.termType == EXPRS_TERM_SYMBOL
 				)
 		{
-			char quote, *cp = result.term.string;
+			char quote, *cp = libExprsStringPoolTop(exprs) + result.term.string;
 			unsigned char cc;
 			quote = strchr(cp,'"') ? '\'':'"';
 			printf("%c",quote);

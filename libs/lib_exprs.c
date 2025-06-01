@@ -207,6 +207,116 @@ static const ExprsPrecedence_t PrecedenceNone[] =
 	0,	/* EXPRS_TERM_ASSIGN,*//* = */
 };
 
+static void *pointToNextInPool(ExprsDef_t *exprs, ExprsPool_t *pool, int increment, size_t numItems)
+{
+	void *ans=NULL;
+	if ( pool->mNumUsed + numItems >= pool->mNumAvailable )
+	{
+		void *newPtr;
+		int newNum;
+		int newInc = increment;
+		if ( newInc < numItems )
+			newInc = numItems+1;
+		newNum = pool->mNumAvailable + newInc;
+		newPtr = (void *)exprs->mCallbacks.memAlloc(exprs->mCallbacks.memArg, newNum * pool->mEntrySize);
+		if ( !newPtr )
+		{
+			char tBuf[128];
+			snprintf(tBuf,sizeof(tBuf),"lib_exprs().getMemoryItem(): Failed to allocate %ld bytes for pool %d: %s\n",
+					 newNum * pool->mEntrySize, pool->mPoolID, strerror(errno));
+			exprs->mCallbacks.msgOut(exprs->mCallbacks.msgArg, EXPRS_SEVERITY_FATAL, tBuf);
+			return NULL;
+		}
+		if ( pool->mPoolTop )
+		{
+			/* If existing memory, need to do a realloc */
+			if ( pool->mNumUsed )
+				memcpy(newPtr, pool->mPoolTop, pool->mNumUsed * pool->mEntrySize);
+			exprs->mCallbacks.memFree(exprs->mCallbacks.memArg,pool->mPoolTop);
+		}
+		pool->mPoolTop = newPtr;
+		pool->mNumAvailable = newNum;
+		memset((char *)newPtr + (pool->mNumUsed * pool->mEntrySize), 0, (pool->mNumAvailable-pool->mNumUsed)*pool->mEntrySize);
+	}
+	ans = (void *)((char *)pool->mPoolTop + pool->mEntrySize * pool->mNumUsed);
+	return ans;
+}
+
+static void *getNextFromPool(ExprsDef_t *exprs, ExprsPool_t *pool, int increment, size_t numItems)
+{
+	void *ans = pointToNextInPool(exprs,pool,increment,numItems);
+	if ( ans )
+		pool->mNumUsed += numItems;
+	return ans;
+}
+
+static ExprsTerm_t *pointToNextTerm(ExprsDef_t *exprs, ExprsStack_t *stack)
+{
+	ExprsTerm_t *ans;
+	ans = (ExprsTerm_t *)pointToNextInPool(exprs, &stack->mTermsPool, exprs->mTermsPoolInc, 1);
+	if ( !ans )
+		return ans;
+	ans->term.s64 = 0;
+	ans->termType = EXPRS_TERM_NULL;
+	ans->chrPtr = NULL;
+	return ans;
+}
+
+static ExprsTerm_t *pointToNextOper(ExprsDef_t *exprs, ExprsStack_t *stack)
+{
+	ExprsTerm_t *ans;
+	ans = (ExprsTerm_t *)pointToNextInPool(exprs, &stack->mOpersPool, exprs->mTermsPoolInc, 1);
+	if ( !ans )
+		return ans;
+	ans->term.s64 = 0;
+	ans->termType = EXPRS_TERM_NULL;
+	ans->chrPtr = NULL;
+	return ans;
+}
+
+static ExprsStack_t *getNextStack(ExprsDef_t *exprs)
+{
+	ExprsStack_t *ans;
+	ans = (ExprsStack_t *)getNextFromPool(exprs, &exprs->mStackPool, exprs->mStackPoolInc, 1);
+	if ( !ans )
+		return ans;
+	if ( ans->mOpersPool.mPoolID == ExprsPoolNull )
+	{
+		ans->mOpersPool.mEntrySize = sizeof(ExprsTerm_t);
+		ans->mOpersPool.mPoolID = ExprsPoolOpers;
+		ans->mTermsPool.mEntrySize = sizeof(ExprsTerm_t);
+		ans->mTermsPool.mPoolID = ExprsPoolTerms;
+	}
+	return ans;
+}
+
+static char *getFromStringPool(ExprsDef_t *exprs,int len)
+{
+	char *ans = (char *)getNextFromPool(exprs, &exprs->mStringPool, exprs->mStringPoolInc, len);
+	*ans = 0;
+	return ans;
+}
+
+char *libExprsStringPoolTop(ExprsDef_t *exprs)
+{
+	return (char *)exprs->mStringPool.mPoolTop;
+}
+
+ExprsStack_t *libExprsStackPoolTop(ExprsDef_t *exprs)
+{
+	return (ExprsStack_t *)exprs->mStackPool.mPoolTop;
+}
+
+ExprsTerm_t *libExprsTermPoolTop(ExprsDef_t *exprs, ExprsStack_t *stack)
+{
+	return (ExprsTerm_t *)stack->mTermsPool.mPoolTop;
+}
+
+ExprsTerm_t *libExprsOpersPoolTop(ExprsDef_t *exprs, ExprsStack_t *stack)
+{
+	return (ExprsTerm_t *)stack->mOpersPool.mPoolTop;
+}
+
 static char *showTermType(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm_t *term, char *dst, int dstLen)
 {
 	dst[0] = 0;
@@ -216,16 +326,16 @@ static char *showTermType(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm_t *te
 			snprintf(dst,dstLen,"%s","NULL");
 			break;
 		case EXPRS_TERM_LINK:
-			snprintf(dst,dstLen,"@(stack%ld)",sPtr-exprs->mStacks);
+			snprintf(dst, dstLen, "@(stack%d)", term->term.link);
 			break;
 		case EXPRS_TERM_SYMBOL:
-			snprintf(dst, dstLen, "Symbol: %s", term->term.string);
+			snprintf(dst, dstLen, "Symbol: %s", libExprsStringPoolTop(exprs) + term->term.string);
 			break;
 		case EXPRS_TERM_FUNCTION:
-			snprintf(dst, dstLen, "Function: %s()", term->term.string);
+			snprintf(dst, dstLen, "Function: %s()", libExprsStringPoolTop(exprs) + term->term.string);
 			break;
 		case EXPRS_TERM_STRING:
-			snprintf(dst, dstLen, "String: '%s'", term->term.string);
+			snprintf(dst, dstLen, "String: '%s'", libExprsStringPoolTop(exprs) + term->term.string);
 			break;
 		case EXPRS_TERM_FLOAT:
 			snprintf(dst, dstLen, "FLOAT: '%g'", term->term.f64);
@@ -271,32 +381,6 @@ static char *showTermType(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm_t *te
 static void showMsg(ExprsDef_t *exprs, ExprsMsgSeverity_t severity, const char *msg )
 {
 	exprs->mCallbacks.msgOut(exprs->mCallbacks.msgArg,severity,msg);
-}
-
-static char *getStringMem(ExprsDef_t *exprs, int amount)
-{
-	char *ans=NULL;
-	if ( amount < exprs->mStringPoolAvailable-exprs->mStringPoolUsed )
-	{
-		ans = exprs->mStringPool+exprs->mStringPoolUsed;
-		exprs->mStringPoolUsed += amount;
-	}
-	return ans;
-}
-
-static ExprsStack_t *getNextStack(ExprsDef_t *exprs)
-{
-	ExprsStack_t *ans = NULL;
-	if ( exprs->mNumStacks < exprs->mNumAvailStacks )
-	{
-		ans = exprs->mStacks + exprs->mNumStacks;
-		++exprs->mNumStacks;
-		ans->mNumTerms = 0;
-		ans->mTerms[0].chrPtr = NULL;
-		ans->mTerms[0].termType = EXPRS_TERM_NULL;
-		ans->mTerms[0].term.s64 = 0;
-	}
-	return ans;
 }
 
 ExprsErrs_t libExprsSetVerbose(ExprsDef_t *exprs, unsigned int newVal, unsigned int *oldValP)
@@ -370,35 +454,44 @@ ExprsErrs_t libExprsSetCloseDelimiter(ExprsDef_t *exprs, char newVal, char *oldV
 
 static void reset(ExprsDef_t *exprs)
 {
-	exprs->mNumStacks = 0;
-	exprs->mStringPoolUsed = 0;
+	int ii;
+	ExprsStack_t *stack = libExprsStackPoolTop(exprs);
+	for ( ii = 0; ii < exprs->mStackPool.mNumUsed; ++ii, ++stack )
+	{
+		stack->mTermsPool.mNumUsed = 0;
+		stack->mOpersPool.mNumUsed = 0;
+	}
+	exprs->mStackPool.mNumUsed = 0;
+	exprs->mStringPool.mNumUsed = 0;
 }
 
 static void dumpStacks(ExprsDef_t *exprs)
 {
 	int ii, jj;
-	ExprsStack_t *nPtr,*sPtr;
+	ExprsStack_t *sPtr;
 	char eBuf[512];
 	int len;
 	
-	sPtr = exprs->mStacks;
-	for (jj=0; jj < exprs->mNumStacks; ++jj, ++sPtr)
+	sPtr = (ExprsStack_t *)exprs->mStackPool.mPoolTop;
+	for ( jj = 0; jj < exprs->mStackPool.mNumUsed; ++jj, ++sPtr )
 	{
-		len = snprintf(eBuf,sizeof(eBuf),"Stack %3d, %3d %s ", jj, sPtr->mNumTerms, sPtr->mNumTerms == 1 ? "term: ":"terms:");
-		for (ii=0; ii < sPtr->mNumTerms; ++ii )
+		ExprsTerm_t *term;
+		len = snprintf(eBuf, sizeof(eBuf), "Stack %3d, %3d %s ", jj, sPtr->mTermsPool.mNumUsed, sPtr->mTermsPool.mNumUsed == 1 ? "term: " : "terms:");
+		term = (ExprsTerm_t *)sPtr->mTermsPool.mPoolTop;
+		for (ii=0; ii < sPtr->mTermsPool.mNumUsed; ++ii, ++term )
 		{
-			switch (sPtr->mTerms[ii].termType)
+			switch (term->termType)
 			{
 			case EXPRS_TERM_NULL:
 				len += snprintf(eBuf+len, sizeof(eBuf)-len, " NULL" );
 				break;
 			case EXPRS_TERM_LINK:	/* link to another stack */
-				nPtr = (ExprsStack_t *)sPtr->mTerms[ii].term.link;
-				len += snprintf(eBuf+len, sizeof(eBuf)-len, " (@stack%ld)", nPtr-exprs->mStacks);
+				len += snprintf(eBuf + len, sizeof(eBuf) - len, " (@stack%d)", term->term.link);
 				break;
 			case EXPRS_TERM_STRING:
 				{
-					unsigned char *src = (unsigned char *)sPtr->mTerms[ii].term.string;
+					unsigned char *src;
+					src = (unsigned char *)libExprsStringPoolTop(exprs) + term->term.string;
 					len += snprintf(eBuf+len, sizeof(eBuf)-len, " \"");
 					while ( *src )
 					{
@@ -412,13 +505,13 @@ static void dumpStacks(ExprsDef_t *exprs)
 				break;
 			case EXPRS_TERM_SYMBOL:
 			case EXPRS_TERM_FUNCTION:
-				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %s", sPtr->mTerms[ii].term.string);
+				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %s", libExprsStringPoolTop(exprs) + term->term.string);
 				break;
 			case EXPRS_TERM_FLOAT:
-				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %g", sPtr->mTerms[ii].term.f64);
+				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %g", term->term.f64);
 				break;
 			case EXPRS_TERM_INTEGER:
-				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %ld", sPtr->mTerms[ii].term.s64);
+				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %ld", term->term.s64);
 				break;
 			case EXPRS_TERM_PLUS:	/* + */
 			case EXPRS_TERM_MINUS:	/* - */
@@ -447,7 +540,7 @@ static void dumpStacks(ExprsDef_t *exprs)
 			case EXPRS_TERM_LAND:	/* && */
 			case EXPRS_TERM_LOR:	/* || */
 			case EXPRS_TERM_ASSIGN:	/* = */
-				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %s", sPtr->mTerms[ii].term.oper);
+				len += snprintf(eBuf+len, sizeof(eBuf)-len, " %s", term->term.oper);
 				break;
 			}
 		}
@@ -486,7 +579,7 @@ static int storeInteger(ExprsDef_t *exprs,
 	if ( exprs->mVerbose )
 	{
 		snprintf(eBuf,sizeof(eBuf),"parseExpression().storeInteger(): Pushed to terms[%ld][%d] a %s Integer %ld. topOper=%d, flags=0x%lX, radix=%d.\n",
-				 sPtr-exprs->mStacks, sPtr->mNumTerms, rdxName, term->term.s64, topOper, exprs->mFlags, radix);
+				 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed, rdxName, term->term.s64, topOper, exprs->mFlags, radix);
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 	}
 	if ( eatSuffix )
@@ -494,7 +587,7 @@ static int storeInteger(ExprsDef_t *exprs,
 	exprs->mCurrPtr = sEndp;
 	term->termType = EXPRS_TERM_INTEGER;
 	*lastTermWasOperatorP = false;
-	++sPtr->mNumTerms;
+	++sPtr->mTermsPool.mNumUsed;
 	return 0;
 }
 
@@ -502,7 +595,7 @@ static ExprsErrs_t handleString(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm
 {
 	int strLen;
 	const char *endP;
-	char *sEndP, quoteChar = cc, *dst;
+	char *newPtr, *sEndP, quoteChar = cc, *dst;
 	unsigned short chMask;
 	char eBuf[512];
 	
@@ -531,12 +624,15 @@ static ExprsErrs_t handleString(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm
 		}
 		strLen = endP-exprs->mCurrPtr;
 	}
-	if ( !(term->term.string = getStringMem(exprs,strLen+1)) )
+	newPtr = getFromStringPool(exprs, strLen + 1);
+	if ( !newPtr )
 		return EXPR_TERM_BAD_OUT_OF_MEMORY;
-	term->term.string[strLen] = 0;
+	newPtr[strLen] = 0;
 	endP = exprs->mCurrPtr+1;		/* Skip starting quote char */
-	dst = term->term.string;
-	while ( (cc = *endP) && dst < term->term.string+strLen )
+	dst = newPtr;
+	term->term.string = newPtr - libExprsStringPoolTop(exprs);
+	*newPtr = 0;
+	while ( (cc = *endP) && dst < newPtr+strLen )
 	{
 		chMask = cttblNormal[(int)cc];
 		if ( (chMask&CT_EOL) )
@@ -611,26 +707,27 @@ static ExprsErrs_t handleString(ExprsDef_t *exprs, ExprsStack_t *sPtr, ExprsTerm
 		/* optionally eat a trailing quote */
 		if ( *endP == '\'' )
 			++endP;
-		cc = term->term.string[0];
+		cc = *newPtr;
 		term->term.s64 = cc;
 		term->termType = EXPRS_TERM_INTEGER;
-		++sPtr->mNumTerms;
 		exprs->mCurrPtr = endP;
 		if ( exprs->mVerbose )
 		{
 			snprintf(eBuf,sizeof(eBuf),"parseExpression().handleString(): Pushed to terms[%ld][%d] a string character=0x%02lX ('%c')\n",
-					 sPtr-exprs->mStacks,sPtr->mNumTerms,term->term.s64,isprint(cc)?cc:'.');
+					 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed-1, term->term.s64, isprint(cc) ? cc : '.');
 			showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		}
 		return EXPR_TERM_GOOD;
 	}
 	if ( exprs->mVerbose )
 	{
-		snprintf(eBuf,sizeof(eBuf),"parseExpression().handleString(): Pushed to terms[%ld][%d] a string='%s'\n", sPtr-exprs->mStacks,sPtr->mNumTerms,term->term.string);
+		snprintf(eBuf,sizeof(eBuf),"parseExpression().handleString(): Pushed to terms[%ld][%d] a string='%s'\n",
+				 sPtr-libExprsStackPoolTop(exprs),
+				 sPtr->mTermsPool.mNumUsed-1,
+				 libExprsStringPoolTop(exprs) + term->term.string);
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 	}
 	term->termType = EXPRS_TERM_STRING;
-	++sPtr->mNumTerms;
 	exprs->mCurrPtr = endP;
 	return (cc == quoteChar) ? EXPR_TERM_GOOD : EXPR_TERM_BAD_NO_STRING_TERM;
 }
@@ -643,11 +740,12 @@ static ExprsErrs_t openNewStack(ExprsDef_t *exprs, int nest, ExprsTerm_t *term, 
 	ExprsErrs_t err;
 	ExprsStack_t *nPtr = getNextStack(exprs);
 	if ( !nPtr )
-		return EXPR_TERM_BAD_TOO_MANY_TERMS;
+		return EXPR_TERM_BAD_TOO_MANY_STACKS;
 	term->termType = EXPRS_TERM_LINK;
-	term->term.link = nPtr;
-	++sPtr->mNumTerms;
+	term->term.link = nPtr - libExprsStackPoolTop(exprs);
+	++sPtr->mTermsPool.mNumUsed;
 	++exprs->mCurrPtr;
+	/* recurse */
 	err = parseExpression(exprs,nest+1,*lastTermWasOperatorP,nPtr); 
 	if ( err )
 		return err;
@@ -690,22 +788,23 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 	const char *startP, *endP;
 	ExprsTerm_t *term;
 	ExprsErrs_t err, peRetV;
-	int topOper = -1; /* top of operator stack */
 	bool exitOut=false;
 	char eBuf[512];
 	int retV;
 	
 	if ( exprs->mVerbose )
 	{
-		snprintf(eBuf,sizeof(eBuf),"parseExpression(): Entry. nest=%d, stackIdx=%ld, numTerms=%d, expr='%s'\n", nest, sPtr - exprs->mStacks, sPtr->mNumTerms, exprs->mCurrPtr);
+		snprintf(eBuf,sizeof(eBuf),"parseExpression(): Entry. nest=%d, stackIdx=%ld, numTerms=%d, expr='%s'\n",
+				 nest,
+				 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed, exprs->mCurrPtr);
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 	}
-	if ( sPtr->mNumTerms >= exprs->mNumAvailTerms )
-		return EXPR_TERM_BAD_TOO_MANY_TERMS;
 	chMaskPtr = (exprs->mFlags & EXPRS_FLG_SPECIAL_UNARY) ? cttblSpecial : cttblNormal;
 	peRetV = EXPR_TERM_GOOD;	
 	while ( 1 )
 	{
+		int topOper;
+		
 		cc = *exprs->mCurrPtr;
 		chMask = chMaskPtr[(int)cc];
 		if ( (chMask&(CT_EOL|CT_COM|CT_SMC)) )
@@ -726,11 +825,11 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		if ( exprs->mVerbose )
 		{
 			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Processing terms[%ld][%d], cc=%c, chMask=0x%04X, lastWasOper=%d:  %s\n",
-					 sPtr - exprs->mStacks, sPtr->mNumTerms, isprint(cc) ? cc : '.', chMask, lastTermWasOperator, exprs->mCurrPtr);
+					 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed, isprint(cc) ? cc : '.', chMask, lastTermWasOperator, exprs->mCurrPtr);
 			showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		}
 		/*  */
-		if ( (exprs->mFlags & EXPRS_FLG_WS_DELIMIT) && !lastTermWasOperator && sPtr->mNumTerms )
+		if ( (exprs->mFlags & EXPRS_FLG_WS_DELIMIT) && !lastTermWasOperator && sPtr->mTermsPool.mNumUsed )
 		{
 			if ( (chMask & (CT_EALP | CT_NUM | CT_QUO)) || cc == exprs->mOpenDelimiter )
 			{
@@ -738,10 +837,11 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 				break;
 			}
 		}
-		term = sPtr->mTerms + sPtr->mNumTerms;
+		term = pointToNextTerm(exprs, sPtr);
 		term->term.s64 = 0;
 		term->termType = EXPRS_TERM_NULL;
 		term->chrPtr = exprs->mCurrPtr;
+		topOper = sPtr->mOpersPool.mNumUsed;
 		if ( (chMask & CT_QUO) )
 		{
 			/* possibly a quoted string */
@@ -754,7 +854,8 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		if ( (chMask&CT_EALP) )
 		{
 			size_t symLen;
-
+			char *strPtr;
+			
 			/* symbol */
 			endP = exprs->mCurrPtr;
 			while ( (cc = *endP) )
@@ -771,12 +872,14 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 				return EXPR_TERM_BAD_NO_SYMBOLS;
 			}
 			symLen = endP - exprs->mCurrPtr;
-			if ( !(term->term.string = getStringMem(exprs,symLen+1)) )
+			strPtr = getFromStringPool(exprs,symLen+1);
+			if ( !strPtr )
 				return EXPR_TERM_BAD_OUT_OF_MEMORY;
-			memcpy(term->term.string,exprs->mCurrPtr,symLen);
-			term->term.string[symLen] = 0;
+			term->term.string = strPtr - libExprsStringPoolTop(exprs);
+			memcpy(strPtr,exprs->mCurrPtr,symLen);
+			strPtr[symLen] = 0;
 			term->termType = EXPRS_TERM_SYMBOL;
-			++sPtr->mNumTerms;
+			++sPtr->mTermsPool.mNumUsed;
 			exprs->mCurrPtr = endP;
 			lastTermWasOperator = false;
 			continue;
@@ -784,6 +887,7 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		if ( (chMask&CT_NUM) )
 		{
 			/* number */
+
 			startP = exprs->mCurrPtr;
 			if (cc == '0' )
 			{
@@ -881,12 +985,13 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 					endP = sEndp;
 					if ( exprs->mVerbose )
 					{
-						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a FLOAT %g. topOper=%d.\n", sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.f64, topOper);
+						snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a FLOAT %g. topOper=%d.\n",
+								 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed, term->term.f64, topOper);
 						showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 					}
 					exprs->mCurrPtr = endP;
 					term->termType = EXPRS_TERM_FLOAT;
-					++sPtr->mNumTerms;
+					++sPtr->mTermsPool.mNumUsed;
 					lastTermWasOperator = false;
 					continue;
 				}
@@ -894,12 +999,12 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			if ( exprs->mVerbose )
 			{
 				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed to terms[%ld][%d] a plain Integer %ld. topOper=%d. mFlags=0x%lX, mRadix=%d\n",
-						 sPtr-exprs->mStacks, sPtr->mNumTerms, term->term.s64, topOper, exprs->mFlags, exprs->mRadix);
+						 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed, term->term.s64, topOper, exprs->mFlags, exprs->mRadix);
 				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 			}
 			exprs->mCurrPtr = endP;
 			term->termType = EXPRS_TERM_INTEGER;
-			++sPtr->mNumTerms;
+			++sPtr->mTermsPool.mNumUsed;
 			lastTermWasOperator = false;
 			continue;
 		}
@@ -1145,47 +1250,58 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 			break;
 		if ( operPtr != term->term.oper )
 		{
-			ExprsTerm_t savTerm = *term;
-			ExprsPrecedence_t oldPrecedence,currPrecedence = exprs->precedencePtr[savTerm.termType];
-			*operPtr = 0;	/* null terminate the operator text string */
+			ExprsTerm_t saveTerm, *oper, *operTop;
+			ExprsPrecedence_t oldPrecedence,currPrecedence;
+			int operIdx;
+			
+			/* Found an actual operator */
+			*operPtr = 0;		/* null terminate the operator text string */
+			saveTerm = *term;	/* save the term contents */
+			currPrecedence = exprs->precedencePtr[term->termType];
+			operIdx = sPtr->mOpersPool.mNumUsed-1;
+			operTop = operIdx >= 0 ? libExprsOpersPoolTop(exprs,sPtr) : NULL;
 			/* check for the operators of higher precedence and then add them to stack */
 			if ( exprs->mVerbose )
 			{
-				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Before precedence. Checking type %d ('%s') precedence %d ...\n", term->termType, term->term.oper, currPrecedence);
+				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Before precedence. Checking type %d ('%s') precedence %d ...\n",
+						 term->termType, term->term.oper, currPrecedence);
 				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 				dumpStacks(exprs);
 			}
 			/* If what is currently in the operator stack (if anything) has a higher precedence than the operator to be pushed,
 			 * then pop the item(s) off the operator stack onto the term stack. Then push the new operator onto the operator stack.
 			 */
-			while ( topOper >= 0 && (oldPrecedence = exprs->precedencePtr[sPtr->mOpers[topOper].mOperType]) >= currPrecedence )
+			while (    operIdx >= 0
+					&& operTop
+					&& (oldPrecedence = exprs->precedencePtr[operTop->termType]) >= currPrecedence )
 			{
-				term->termType = sPtr->mOpers[topOper].mOperType;
-				term->chrPtr = sPtr->mOpers[topOper].chrPtr;
-				term->term.oper[0] = sPtr->mOpers[topOper].mOper[0];
-				term->term.oper[1] = sPtr->mOpers[topOper].mOper[1];
-				term->term.oper[2] = 0;
+				*term = *operTop;
 				if ( exprs->mVerbose )
 				{
 					snprintf(eBuf,sizeof(eBuf),"parseExpression(): Precedence popped from operators[%ld][%d] a '%s'(%d) and pushed it to terms[%ld][%d]. Precedence: curr=%d, new=%d\n",
-						   sPtr-exprs->mStacks, topOper, term->term.oper, term->termType, sPtr - exprs->mStacks, sPtr->mNumTerms,
+							 sPtr - libExprsStackPoolTop(exprs),
+							 operIdx, term->term.oper, term->termType,
+							 sPtr - libExprsStackPoolTop(exprs),
+							 sPtr->mTermsPool.mNumUsed,
 						   currPrecedence, oldPrecedence);
 					showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 				}
-				--topOper;
-				++sPtr->mNumTerms;
-				++term;
+				--operIdx;
+				--operTop;
+				--sPtr->mOpersPool.mNumUsed;
+				++sPtr->mTermsPool.mNumUsed;
+				term = pointToNextTerm(exprs,sPtr);
 			}
-			*term = savTerm;
-			++topOper;
-			sPtr->mOpers[topOper].mOperType = term->termType;
-			sPtr->mOpers[topOper].chrPtr = term->chrPtr;
-			sPtr->mOpers[topOper].mOper[0] = term->term.oper[0];
-			sPtr->mOpers[topOper].mOper[1] = term->term.oper[1];
-			sPtr->mOpers[topOper].mOper[2] = 0;	/* make sure the string is null terminated (probably don't need this) */
+			oper = pointToNextOper(exprs, sPtr);
+			*oper = saveTerm;
+			++sPtr->mOpersPool.mNumUsed;
+			++operIdx;
 			if ( exprs->mVerbose )
 			{
-				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed operator '%s'(%d) to operators[%ld][%d]\n",term->term.oper, term->termType, sPtr-exprs->mStacks, topOper);
+				snprintf(eBuf,sizeof(eBuf),"parseExpression(): Pushed operator '%s'(%d) to operators[%ld][%d]\n",
+						 term->term.oper,
+						 term->termType,
+						 sPtr - libExprsStackPoolTop(exprs), operIdx);
 				showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 			}
 			/* because '+' and '-' are both unary and binary operators, they don't count worth remembering (their precendece decides for them) */
@@ -1197,33 +1313,35 @@ static ExprsErrs_t parseExpression(ExprsDef_t *exprs, int nest, bool lastTermWas
 		else
 		{
 			lastTermWasOperator = false;
-			++sPtr->mNumTerms;
+			++sPtr->mTermsPool.mNumUsed;
 		}
 		++exprs->mCurrPtr;
 	}
 	/* reached end of expression string */
-	term = sPtr->mTerms + sPtr->mNumTerms;
 	/* pop all the operators off the operator stack onto the term stack */
-	while ( topOper >= 0 )
+	while ( sPtr->mOpersPool.mNumUsed > 0 )
 	{
-		ExprsOpers_t *oper = sPtr->mOpers+topOper;
-		term->termType = oper->mOperType;
-		term->chrPtr = oper->chrPtr;
-		term->term.oper[0] = oper->mOper[0];
-		term->term.oper[1] = oper->mOper[1];
-		term->term.oper[2] = 0;
+		ExprsTerm_t *oper;
+		oper = pointToNextOper(exprs,sPtr)-1;
+		term = pointToNextTerm(exprs,sPtr);
+		*term = *oper;
 		if ( exprs->mVerbose )
 		{
-			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Popped '%s'(%d) from operators[%ld][%d] and pushed it to terms[%ld][%d]\n",term->term.oper, term->termType, sPtr-exprs->mStacks, topOper, sPtr - exprs->mStacks, sPtr->mNumTerms);
+			snprintf(eBuf,sizeof(eBuf),"parseExpression(): Popped '%s'(%d) from operators[%ld][%d] and pushed it to terms[%ld][%d]\n",
+					 term->term.oper, term->termType,
+					 sPtr - libExprsStackPoolTop(exprs),
+					 sPtr->mOpersPool.mNumUsed-1,
+					 sPtr - libExprsStackPoolTop(exprs),
+					 sPtr->mTermsPool.mNumUsed);
 			showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		}
-		--topOper;
-		++sPtr->mNumTerms;
-		++term;
+		--sPtr->mOpersPool.mNumUsed;
+		++sPtr->mTermsPool.mNumUsed;
 	}
 	if ( exitOut && exprs->mVerbose )
 	{
-		snprintf(eBuf,sizeof(eBuf),"parseExpression(): Found ')'. Popping out of terms[%ld]. topOper=%d. mNumTerms=%d\n", sPtr-exprs->mStacks, topOper, sPtr->mNumTerms);
+		snprintf(eBuf,sizeof(eBuf),"parseExpression(): Found ')'. Popping out of stack %ld. mNumTermsUsed=%d\n",
+				 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed);
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 		dumpStacks(exprs);
 	}
@@ -1234,27 +1352,30 @@ static ExprsErrs_t lookupSymbol(ExprsDef_t *exprs, ExprsTerm_t *src, ExprsTerm_t
 {
 	ExprsSymTerm_t ans;
 	ExprsErrs_t err;
-	char eBuf[512];
+	char *fromPtr, *toPtr, eBuf[512];
 	int strLen;
 	
 	if ( !exprs->mCallbacks.symGet )
 		return EXPR_TERM_BAD_NO_SYMBOLS;
-	err = exprs->mCallbacks.symGet(exprs->mCallbacks.symArg, src->term.string, &ans);
+	fromPtr = libExprsStringPoolTop(exprs)+src->term.string;
+	err = exprs->mCallbacks.symGet(exprs->mCallbacks.symArg, fromPtr, &ans);
 	if ( !err )
 	{
 		switch (ans.termType)
 		{
 		default:
-			snprintf(eBuf, sizeof(eBuf), "lookupSymbol(): Found symbol '%s' with illegal type %d.\n", src->term.string, ans.termType);
+			snprintf(eBuf, sizeof(eBuf), "lookupSymbol(): Found symbol '%s' with illegal type %d.\n",
+					 fromPtr, ans.termType);
 			showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
 			return EXPR_TERM_BAD_UNSUPPORTED;
 		case EXPRS_SYM_TERM_COMPLEX:
 			return EXPR_TERM_COMPLEX_VALUE;
 		case EXPRS_SYM_TERM_STRING:
-			strLen = strlen(ans.term.string)+1;
-			if ( !(dst->term.string = getStringMem(exprs,strLen)) )
+			strLen = strlen(fromPtr)+1;
+			if ( !(toPtr = getFromStringPool(exprs,strLen)) )
 				return EXPR_TERM_BAD_OUT_OF_MEMORY;
-			strncpy(dst->term.string, ans.term.string, strLen);
+			strncpy(toPtr, ans.term.string, strLen);
+			dst->term.string = toPtr - libExprsStringPoolTop(exprs);
 			break;
 		case EXPRS_SYM_TERM_FLOAT:
 			dst->term.f64 = ans.term.f64;
@@ -1279,7 +1400,8 @@ static ExprsErrs_t doAdd( ExprsDef_t *exprs, ExprsTerm_t *dst, ExprsTerm_t *aa, 
 	
 	if ( exprs->mVerbose )
 	{
-		snprintf(eBuf,sizeof(eBuf),"doAdd(): entry aaType %d, aaValue 0x%lX, bbType %d, bbValue 0x%lX\n", aa->termType, aa->term.s64, bb->termType, bb->term.s64);
+		snprintf(eBuf,sizeof(eBuf),"doAdd(): entry aaType %d, aaValue 0x%lX, bbType %d, bbValue 0x%lX\n",
+				 aa->termType, aa->term.s64, bb->termType, bb->term.s64);
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 	}
 	if ( aa->termType == EXPRS_TERM_SYMBOL )
@@ -1311,16 +1433,16 @@ static ExprsErrs_t doAdd( ExprsDef_t *exprs, ExprsTerm_t *dst, ExprsTerm_t *aa, 
 			err = EXPR_TERM_GOOD;
 			break;
 		case EXPRS_TERM_STRING:
-			sLen = strlen(bb->term.string)+1+32;
-			newStr = getStringMem(exprs,sLen);
+			sLen = strlen(libExprsStringPoolTop(exprs)+bb->term.string)+1+32;
+			newStr = getFromStringPool(exprs,sLen);
 			if ( !newStr )
 			{
 				err = EXPR_TERM_BAD_OUT_OF_MEMORY;
 				break;
 			}
-			snprintf(newStr, sLen, "%g%s", aa->term.f64, bb->term.string);
+			snprintf(newStr, sLen, "%g%s", aa->term.f64, libExprsStringPoolTop(exprs) + bb->term.string);
 			dst->termType = EXPRS_TERM_STRING;
-			dst->term.string = newStr;
+			dst->term.string = newStr - libExprsStringPoolTop(exprs);
 			err = EXPR_TERM_GOOD;
 			break;
 		default:
@@ -1341,16 +1463,16 @@ static ExprsErrs_t doAdd( ExprsDef_t *exprs, ExprsTerm_t *dst, ExprsTerm_t *aa, 
 			err = EXPR_TERM_GOOD;
 			break;
 		case EXPRS_TERM_STRING:
-			sLen = strlen(bb->term.string)+1+32;
-			newStr = getStringMem(exprs,sLen);
+			sLen = strlen(libExprsStringPoolTop(exprs)+bb->term.string)+1+32;
+			newStr = getFromStringPool(exprs,sLen);
 			if ( !newStr )
 			{
 				err = EXPR_TERM_BAD_OUT_OF_MEMORY;
 				break;
 			}
-			snprintf(newStr, sLen, "%ld%s", aa->term.s64, bb->term.string);
+			snprintf(newStr, sLen, "%ld%s", aa->term.s64, libExprsStringPoolTop(exprs) + bb->term.string);
 			dst->termType = EXPRS_TERM_STRING;
-			dst->term.string = newStr;
+			dst->term.string = newStr - libExprsStringPoolTop(exprs);
 			err = EXPR_TERM_GOOD;
 			break;
 		default:
@@ -1358,35 +1480,37 @@ static ExprsErrs_t doAdd( ExprsDef_t *exprs, ExprsTerm_t *dst, ExprsTerm_t *aa, 
 		}
 		break;
 	case EXPRS_TERM_STRING:
-		sLen = strlen(aa->term.string);
+		sLen = strlen(libExprsStringPoolTop(exprs)+aa->term.string);
 		switch (bb->termType)
 		{
 		case EXPRS_TERM_FLOAT:
 		case EXPRS_TERM_INTEGER:
 			sLen += 32+1;
-			newStr = getStringMem(exprs,sLen);
+			newStr = getFromStringPool(exprs,sLen);
 			if ( !newStr )
 			{
 				err = EXPR_TERM_BAD_OUT_OF_MEMORY;
 				break;
 			}
 			if ( bb->termType == EXPRS_TERM_FLOAT )
-				snprintf(newStr, sLen, "%s%g", aa->term.string, bb->term.f64 );
+				snprintf(newStr, sLen, "%s%g", libExprsStringPoolTop(exprs) + aa->term.string, bb->term.f64 );
 			else
-				snprintf(newStr, sLen, "%s%ld", aa->term.string, bb->term.s64 );
-			dst->term.string = newStr;
+				snprintf(newStr, sLen, "%s%ld", libExprsStringPoolTop(exprs) + aa->term.string, bb->term.s64 );
+			dst->term.string = newStr - libExprsStringPoolTop(exprs);
 			err = EXPR_TERM_GOOD;
 			break;
 		case EXPRS_TERM_STRING:
-			sLen += strlen(bb->term.string)+1;
-			newStr = getStringMem(exprs,sLen);
+			sLen += strlen(libExprsStringPoolTop(exprs)+bb->term.string)+1;
+			newStr = getFromStringPool(exprs,sLen);
 			if ( !newStr )
 			{
 				err = EXPR_TERM_BAD_OUT_OF_MEMORY;
 				break;
 			}
-			snprintf(newStr, sLen, "%s%s", aa->term.string, bb->term.string);
-			dst->term.string = newStr;
+			snprintf(newStr, sLen, "%s%s",
+					 libExprsStringPoolTop(exprs) + aa->term.string,
+					 libExprsStringPoolTop(exprs) + bb->term.string);
+			dst->term.string = newStr - libExprsStringPoolTop(exprs);
 			err = EXPR_TERM_GOOD;
 			break;
 		default:
@@ -1905,18 +2029,20 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 	
 	if ( exprs->mVerbose )
 	{
-		snprintf(eBuf,sizeof(eBuf),"Into computeViaRPN(): nest=%d, stack %ld. Items=%d\n", nest, sPtr - exprs->mStacks, sPtr->mNumTerms);
+		snprintf(eBuf,sizeof(eBuf),"Into computeViaRPN(): nest=%d, stack %ld. Items=%d\n",
+				 nest,
+				 sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed);
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 	}
 	returnResult->termType = EXPRS_TERM_NULL;
-	if ( !sPtr->mNumTerms )
+	if ( !sPtr->mTermsPool.mNumUsed )
 		return EXPR_TERM_BAD_TOO_FEW_TERMS;
 	params.exprs = exprs;
 	params.sPtr = sPtr;
 	params.rTop = -1;
-	for( ii=0; ii < sPtr->mNumTerms; ++ii )
+	for ( ii = 0; ii < sPtr->mTermsPool.mNumUsed; ++ii )
 	{
-		params.term = term = sPtr->mTerms+ii;
+		params.term = term = libExprsTermPoolTop(exprs,sPtr)+ii;
 		params.ii = ii;
 		returnResult->chrPtr = term->chrPtr;
 		tType =  term->termType; 
@@ -1937,7 +2063,7 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 		case EXPRS_TERM_LINK:
 			{
 				ExprsStack_t *nPtr;
-				nPtr = (ExprsStack_t *)sPtr->mTerms[ii].term.link;
+				nPtr = libExprsStackPoolTop(exprs) + term->term.link;
 				if ( params.rTop >= n_elts(params.results)-1 )
 					return EXPR_TERM_BAD_TOO_MANY_TERMS;
 				if ( exprs->mVerbose )
@@ -1949,6 +2075,7 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 				}
 				++params.rTop;
 				params.aa = params.results + params.rTop;
+				/* recurse */
 				err = computeViaRPN(exprs, nest+1, nPtr, params.aa);
 				if ( err > EXPR_TERM_END )
 					return err;
@@ -2317,12 +2444,12 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 			}
 			ans.termType = (ExprsSymTermTypes_t)params.bb->termType;
 			ans.term.f64 = params.bb->term.f64;
-			err = exprs->mCallbacks.symSet(exprs->mCallbacks.symArg,params.aa->term.string,&ans);
+			err = exprs->mCallbacks.symSet(exprs->mCallbacks.symArg,libExprsStringPoolTop(exprs)+params.aa->term.string,&ans);
 			if ( err )
 			{
 				snprintf(eBuf,sizeof(eBuf),"computeViaRPN(): Failed ('%s') to assign symbol '%s' at or near %s\n",
 						 libExprsGetErrorStr(err),
-						 params.aa->term.string,
+						 libExprsStringPoolTop(exprs)+params.aa->term.string,
 						 params.aa->chrPtr);
 				showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
 				return err;
@@ -2346,7 +2473,7 @@ static ExprsErrs_t computeViaRPN(ExprsDef_t *exprs, int nest, ExprsStack_t *sPtr
 	if ( exprs->mVerbose )
 	{
 		snprintf(eBuf,sizeof(eBuf),"computeViaRPN(): Finish. nest=%d, stack %ld. Items=%d. rTop=%d, %s\n",
-			   nest, sPtr - exprs->mStacks, sPtr->mNumTerms, params.rTop,
+				 nest, sPtr - libExprsStackPoolTop(exprs), sPtr->mTermsPool.mNumUsed, params.rTop,
 			   showTermType(exprs,sPtr,returnResult,params.tmpBuf0,sizeof(params.tmpBuf0)-1));
 		showMsg(exprs,EXPRS_SEVERITY_INFO,eBuf);
 	}
@@ -2405,7 +2532,7 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 	char eBuf[512], saveOpen=0, saveClose=0;
 	int len;
 	
-	if ( !exprs || !returnTerm )
+	if ( !exprs || !returnTerm || !text )
 		return EXPR_TERM_BAD_PARAMETER;
 	if ( !alreadyLocked && (err2=libExprsLock(exprs)) )
 		return err2;
@@ -2436,7 +2563,7 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 		exprs->mLineHead = exprs->mCurrPtr = text;
 		while ( exprs->mCurrPtr < ePtr && *exprs->mCurrPtr )
 		{
-			reset(exprs); 				/* Clear any existing cruft */
+			reset(exprs); 				/* Clear any existing stacks */
 			peErr = parseExpression(exprs, 0, true, getNextStack(exprs));
 			err = peErr;
 			if ( err <= EXPR_TERM_END )
@@ -2446,7 +2573,7 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 					showMsg(exprs,EXPRS_SEVERITY_INFO,"Stacks before computeViaRPN");
 					dumpStacks(exprs);
 				}
-				err = computeViaRPN(exprs, 0, exprs->mStacks, returnTerm);
+				err = computeViaRPN(exprs, 0, libExprsStackPoolTop(exprs), returnTerm);
 				if ( err <= EXPR_TERM_END )
 				{
 					if ( returnTerm->termType == EXPRS_TERM_SYMBOL )
@@ -2455,7 +2582,8 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 						err = lookupSymbol(exprs, returnTerm,&sym);
 						if ( err )
 						{
-							len = snprintf(eBuf,sizeof(eBuf),"libExprsEval(): Undefined symbol: %s\n", returnTerm->term.string);
+							len = snprintf(eBuf,sizeof(eBuf),"libExprsEval(): Undefined symbol: %s\n",
+										   libExprsStringPoolTop(exprs)+returnTerm->term.string);
 							if ( returnTerm->chrPtr )
 								snprintf(eBuf+len,sizeof(eBuf)-len, "At or near: %s\n", returnTerm->chrPtr );
 							showMsg(exprs,EXPRS_SEVERITY_ERROR,eBuf);
@@ -2480,7 +2608,8 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 						case EXPRS_TERM_SYMBOL:	/* Symbol */
 						case EXPRS_TERM_FUNCTION:/* Function call */
 						case EXPRS_TERM_STRING:	/* Text string */
-							snprintf(eBuf,sizeof(eBuf),"Type %d: value: '%s'\n", returnTerm->termType, returnTerm->term.string);
+							snprintf(eBuf,sizeof(eBuf),"Type %d: value: '%s'\n", returnTerm->termType,
+									 libExprsStringPoolTop(exprs) + returnTerm->term.string);
 							break;
 						case EXPRS_TERM_FLOAT:	/* 64 bit floating point number */
 							snprintf(eBuf,sizeof(eBuf),"Type %d: value: '%g'\n", returnTerm->termType, returnTerm->term.f64);
@@ -2537,6 +2666,11 @@ ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *retur
 	if ( !alreadyLocked )
 		err2 = libExprsUnlock(exprs);
 	return err ? err : err2;
+}
+
+ExprsErrs_t libExprsParseToRPN(ExprsDef_t *exprs, const char *text, int alreadyLocked)
+{
+	return EXPR_TERM_BAD_UNSUPPORTED;
 }
 
 static void lclMsgOut(void *msgArg, ExprsMsgSeverity_t severity, const char *msg)
@@ -2605,27 +2739,20 @@ ExprsErrs_t libExprsSetCallbacks(ExprsDef_t *exprs, const ExprsCallbacks_t *newP
 	return EXPR_TERM_GOOD;
 }
 
-ExprsDef_t* libExprsInit(const ExprsCallbacks_t *callbacks, int maxStacks, int maxTerms, int stringPoolSize)
+ExprsDef_t *libExprsInit(const ExprsCallbacks_t *callbacks, int stackIncs, int termIncs, int stringIncs)
 {
-	int ii;
-	ExprsStack_t *sPtr;
-	size_t stackSize;
-	size_t termPoolSize;
-	size_t opersPoolSize;
-	ExprsOpers_t *etPtr;
-	ExprsTerm_t *tPtr;
 	ExprsDef_t *exprs;
 	ExprsCallbacks_t tCallbacks;
 	char tBuf[512];
 	
-	if ( !maxStacks )
-		maxStacks = 32;
-	if ( !maxTerms )
-		maxTerms = 32;
-	if ( !stringPoolSize )
-		stringPoolSize = 2048;
 	if ( !checkCallbacks(&tCallbacks,callbacks,EXPRS_SEVERITY_FATAL) )
 		return NULL;
+	if ( !stackIncs )
+		stackIncs = 32;
+	if ( !termIncs )
+		termIncs = 32;
+	if ( !stringIncs )
+		stringIncs = 2048;
 	exprs = (ExprsDef_t *)tCallbacks.memAlloc(tCallbacks.memArg, sizeof(ExprsDef_t));
 	if ( !exprs )
 	{
@@ -2637,63 +2764,14 @@ ExprsDef_t* libExprsInit(const ExprsCallbacks_t *callbacks, int maxStacks, int m
 	exprs->mOpenDelimiter = '(';
 	exprs->mCloseDelimiter = ')';
 	exprs->mCallbacks = tCallbacks;
-	exprs->mNumAvailStacks = maxStacks;
-	exprs->mNumAvailTerms = maxTerms;
 	exprs->mVerbose = 0;
-	stackSize = exprs->mNumAvailStacks*sizeof(ExprsStack_t);
-	exprs->mStacks = (ExprsStack_t *)tCallbacks.memAlloc(tCallbacks.memArg, stackSize);
-	if ( !exprs->mStacks )
-	{
-		snprintf(tBuf,sizeof(tBuf),"libExprsInit(): unable to allocate %ld bytes for stacks. Out of memory.\n", stackSize );
-		showMsg(exprs,EXPRS_SEVERITY_FATAL,tBuf);
-		tCallbacks.memFree(tCallbacks.memArg, exprs);
-		return NULL;
-	}
-	termPoolSize = (exprs->mNumAvailStacks*exprs->mNumAvailTerms)*sizeof(ExprsTerm_t);
-	exprs->mTermPool = (ExprsTerm_t *)tCallbacks.memAlloc(tCallbacks.memArg, termPoolSize);
-	if ( !exprs->mTermPool )
-	{
-		snprintf(tBuf,sizeof(tBuf), "libExprsInit(): unable to allocate %ld bytes for terms. Out of memory.\n", termPoolSize );
-		showMsg(exprs,EXPRS_SEVERITY_FATAL,tBuf);
-		tCallbacks.memFree(tCallbacks.memArg, exprs->mStacks);
-		tCallbacks.memFree(tCallbacks.memArg, exprs);
-		return NULL;
-	}
-	opersPoolSize = (exprs->mNumAvailStacks*exprs->mNumAvailTerms)*sizeof(ExprsOpers_t);
-	exprs->mOpersPool = (ExprsOpers_t *)tCallbacks.memAlloc(tCallbacks.memArg, opersPoolSize);
-	if ( !exprs->mOpersPool )
-	{
-		snprintf(tBuf,sizeof(tBuf),"libExprsInit(): unable to allocate %ld bytes for operators. Out of memory.\n", opersPoolSize );
-		showMsg(exprs,EXPRS_SEVERITY_FATAL,tBuf);
-		tCallbacks.memFree(tCallbacks.memArg, exprs->mTermPool);
-		tCallbacks.memFree(tCallbacks.memArg, exprs->mStacks);
-		tCallbacks.memFree(tCallbacks.memArg, exprs);
-		return NULL;
-	}
-	exprs->mStringPoolAvailable = stringPoolSize;
-	exprs->mStringPool = (char *)tCallbacks.memAlloc(tCallbacks.memArg, stringPoolSize+1);
-	if ( !exprs->mStringPool )
-	{
-		snprintf(tBuf,sizeof(tBuf),"libExprsInit(): unable to allocate %d bytes for string pool. Out of memory.\n", stringPoolSize+1);
-		showMsg(exprs,EXPRS_SEVERITY_FATAL,tBuf);
-		tCallbacks.memFree(tCallbacks.memArg, exprs->mOpersPool);
-		tCallbacks.memFree(tCallbacks.memArg, exprs->mTermPool);
-		tCallbacks.memFree(tCallbacks.memArg, exprs->mStacks);
-		tCallbacks.memFree(tCallbacks.memArg, exprs);
-		return NULL;
-	}
-	sPtr = exprs->mStacks;
-	tPtr = exprs->mTermPool;
-	etPtr = exprs->mOpersPool;
-	for (ii=0; ii < exprs->mNumAvailStacks; ++ii, ++sPtr)
-	{
-		sPtr->mNumTerms = 0;
-		sPtr->mTerms = tPtr;
-		sPtr->mOpers = etPtr;
-		tPtr += exprs->mNumAvailTerms;
-		etPtr += exprs->mNumAvailTerms;
-	}
-	exprs->mStringPool[0] = 0;
+	exprs->mStackPoolInc = stackIncs;
+	exprs->mStringPoolInc = stringIncs;
+	exprs->mTermsPoolInc = termIncs;
+	exprs->mStackPool.mEntrySize = sizeof(ExprsStack_t);
+	exprs->mStackPool.mPoolID = ExprsPoolStacks;
+	exprs->mStringPool.mEntrySize = sizeof(char);
+	exprs->mStringPool.mPoolID = ExprsPoolString;
 	pthread_mutex_init(&exprs->mMutex,NULL);
 	return exprs;
 }
@@ -2703,16 +2781,23 @@ ExprsErrs_t libExprsDestroy(ExprsDef_t *exprs)
 	ExprsErrs_t err;
 	void (*memFree)(void *memArg, void *memPtr) = exprs->mCallbacks.memFree;
 	void *pArg = exprs->mCallbacks.memArg;
+	int ii;
+	ExprsStack_t *stack;
 	
 	err = libExprsLock(exprs);
-	if ( exprs->mStringPool )
-		memFree(pArg, exprs->mStringPool);
-	if ( exprs->mOpersPool )
-		memFree(pArg, exprs->mOpersPool);
-	if ( exprs->mTermPool )
-		memFree(pArg, exprs->mTermPool);
-	if ( exprs->mStacks )
-		memFree(pArg, exprs->mStacks);
+	stack = libExprsStackPoolTop(exprs);
+	if ( stack )
+	{
+		for (ii=0; ii < exprs->mStackPool.mNumAvailable; ++ii, ++stack)
+		{
+			if ( stack->mOpersPool.mPoolTop )
+				memFree(pArg,stack->mOpersPool.mPoolTop);
+			if ( stack->mTermsPool.mPoolTop )
+				memFree(pArg,stack->mTermsPool.mPoolTop);
+		}
+	}
+	if ( exprs->mStringPool.mPoolTop )
+		memFree(pArg,exprs->mStringPool.mPoolTop);
 	pthread_mutex_unlock(&exprs->mMutex);
 	pthread_mutex_destroy(&exprs->mMutex);
 	memFree(pArg, exprs);

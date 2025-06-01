@@ -56,6 +56,23 @@
  * a unary negative (i.e. 5--6 means subtract a negative 6 from
  * 5.
  */
+typedef enum
+{
+	ExprsPoolNull,
+	ExprsPoolStacks,
+	ExprsPoolTerms,
+	ExprsPoolOpers,
+	ExprsPoolString
+} ExprsPoolID_t;
+
+typedef struct
+{
+	void *mPoolTop;
+	size_t mEntrySize;
+	int mNumUsed;
+	int mNumAvailable;
+	ExprsPoolID_t mPoolID;
+} ExprsPool_t;
 
 /** ExprsTermTypes_t - Ident of the various types of terms
  *  that may be parsed.
@@ -113,32 +130,21 @@ typedef struct
 	/* The actual term is one of the following: */
 	union
 	{
-		void *link;		/* Link to a different stack */
-		char *string;	/* Pointer to malloc'd string if type is string */
+		int link;		/* Index to a different stack */
+		int string;		/* Index into the string pool if type is string */
 		double f64;
 		long s64;
 		unsigned long u64;
-		char oper[3];
+		char oper[4];
 	} term;
 } ExprsTerm_t;
-
-/** ExprsOpers_t - definition of the primitive operator
- *  terms.
- **/
-typedef struct
-{
-	ExprsTermTypes_t mOperType;		/* Really just the operator types will be here not any generic term types */
-	const char *chrPtr;				/* pointer in expression string where operator found */
-	char mOper[3];					/* operator string (up to 2 characters plus a null) */
-} ExprsOpers_t;
 
 /** ExprsStack_t - definition of a expression stack
  **/
 typedef struct
 {
-	int mNumTerms;					/* Total number of terms in the stack */
-	ExprsOpers_t *mOpers; 			/* stacked operators */
-	ExprsTerm_t *mTerms;			/* stacked terms */
+	ExprsPool_t mTermsPool;			/* pool of terms for this stack */
+	ExprsPool_t mOpersPool;			/* pool of operators for this stack */
 } ExprsStack_t;
 
 /** ExprsErrs_t - definition of errors that may be returned
@@ -159,6 +165,7 @@ typedef enum
 	EXPR_TERM_BAD_OPER,
 	EXPR_TERM_BAD_SYNTAX,
 	EXPR_TERM_BAD_TOO_MANY_TERMS,
+	EXPR_TERM_BAD_TOO_MANY_STACKS,
 	EXPR_TERM_BAD_TOO_FEW_TERMS,
 	EXPR_TERM_BAD_NO_TERMS,
 	EXPR_TERM_BAD_NO_CLOSE,
@@ -274,15 +281,11 @@ typedef struct
 	void *userArg2;					/*! can be used for any purpose */
 	ExprsCallbacks_t mCallbacks;	/*! callbacks to be used by the parser */
 	unsigned int mVerbose;			/*! verbose flags */
-	ExprsStack_t *mStacks;			/*! Pointer to expression stacks */
-	ExprsTerm_t *mTermPool;			/*! Pointer to pool of expression terms */
-	int mNumAvailTerms;				/*! Total number of available terms in term pool */
-	ExprsOpers_t *mOpersPool;		/*! Pointer to pool of operator terms */
-	int mStringPoolUsed;			/*! Number of bytes assigned from string pool */
-	int mStringPoolAvailable;		/*! Total bytes available int string pool */
-	char *mStringPool;				/*! Pointer to string pool */
-	int mNumStacks;					/*! Number of stacks in use */
-	int mNumAvailStacks;			/*! Total number of stacks available */
+	int mStackPoolInc;				/*! stack pool increment */
+	int mTermsPoolInc;				/*! term pool increment */
+	int mStringPoolInc;				/*! string pool increment */
+	ExprsPool_t mStackPool;			/*! stack pool */
+	ExprsPool_t mStringPool;		/*! string pool */
 	const char *mCurrPtr;			/*! Pointer to current place in expression string being processed */
 	const char *mLineHead;			/*! Pointer to first character in expression string */
 	unsigned long mFlags;			/*! Bit mask of EXPRS_FLG_xxx bits */
@@ -297,14 +300,13 @@ typedef struct
  *  At entry:
  * @param callbacks - pointer to list of various callbacks the
  *  				parser is to use.
- * @param maxStacks - set the maximum number of expression
- *  				stacks to configure (if 0, defaults to 32).
- * @param maxTerms - sets the term pool size which is the
- *  			   maximum number of expression terms that will
- *  			   appear in any individual stack (if 0,
- *  			   defaults to 32).
- * @param stringPoolSize - sets the size of the string pool (if
- *  					 0, defaults to 2048).
+ * @param stackIncs - sets the number of stacks added at one
+ *  				time. If 0, the default is set to 8.
+ * @param termIncs - sets the number of terms added when needed.
+ *  			   If 0, a default is set to 32.
+ * @param stringIncs - sets the number of bytes for strings
+ *  					 added when needed. If 0, defaults to
+ *  					 2048.
  *
  * At exit:
  * @return pointer to expression parser control struct or NULL
@@ -314,7 +316,7 @@ typedef struct
  *  	 ExprsDef_t struct. The struct pointed to by 'callbacks'
  *  	 does not need to remain in static memory.
  **/
-extern ExprsDef_t *libExprsInit(const ExprsCallbacks_t *callbacks, int maxStacks, int maxTerms, int stringPoolSize);
+extern ExprsDef_t *libExprsInit(const ExprsCallbacks_t *callbacks, int stackIncs, int termIncs, int stringIncs);
 
 /** libExprsDestroy - free all the previously allocated
  *  memory used by the expression parser.
@@ -470,6 +472,46 @@ extern const char *libExprsGetErrorStr(ExprsErrs_t errCode);
  *  	  will not survive a subsequent call to either.
  **/
 extern ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t *returnTerm, int alreadyLocked);
+
+/** libExprsParseToRPN - Parse an expression to RPN
+ *
+ *  At entry:
+ *  @param exprs - pointer to expression parser control as
+ *  			 returned from libExprsInit().
+ *  @param text - null terminated text of expression to
+ *  			parse.
+ *  @param alreadyLocked - set to non-zero to indicate the mutex
+ *  					 lock on the ExprsDef_t has already been
+ *  					 performed by libExprsLock().
+ *
+ *  At exit:
+ *  @return 0 on success, else error. The parsed expression can
+ *  		be found in the members mStacks and mNumStacks. The
+ *  		member mCurrPtr will point to the place in the text
+ *  		where the parser stopped whether or not return code
+ *  		is error.
+ *
+ *  @note At entry to this function all internal variables are
+ *  	  cleared. That is, nothing is remembered about any
+ *  	  previous expression parse from one call to another.
+ *
+ **/
+extern ExprsErrs_t libExprsParseToRPN(ExprsDef_t *exprs, const char *text, int alreadyLocked);
+
+/** libExprsXXXPoolTop - get the pointers to the tops of the
+ *  various pools.
+ *
+ *  At entry:
+ *  @param exprs - pointer to expression parser control as
+ *  			 returned from libExprsInit().
+ *
+ *  At exit:
+ *  @return pointer to top of selected pool.
+ **/
+extern ExprsStack_t *libExprsStackPoolTop(ExprsDef_t *exprs);
+extern ExprsTerm_t *libExprsTermPoolTop(ExprsDef_t *exprs, ExprsStack_t *stack);
+extern ExprsTerm_t *libExprsOpersPoolTop(ExprsDef_t *exprs, ExprsStack_t *stack);
+extern char *libExprsStringPoolTop(ExprsDef_t *exprs);
 
 /** libExprsLock - lock the hash table.
  *
