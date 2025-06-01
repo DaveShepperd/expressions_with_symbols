@@ -18,7 +18,7 @@
 #ifndef _EXPRS_TEST_NOS_H_
 #define _EXPRS_TEST_NOS_H_ (1)
 
-extern int exprsTestNoSym(const char *expression, unsigned long flags, int radix, int verbose);
+extern int exprsTestNoSym(int incs, const char *expression, unsigned long flags, int radix, int verbose);
 
 #endif	/* _EXPRS_TEST_NOS_H_ */
 

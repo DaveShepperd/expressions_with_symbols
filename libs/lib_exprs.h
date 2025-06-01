@@ -71,6 +71,7 @@ typedef struct
 	size_t mEntrySize;
 	int mNumUsed;
 	int mNumAvailable;
+	int mMaxUsed;
 	ExprsPoolID_t mPoolID;
 } ExprsPool_t;
 
@@ -194,8 +195,8 @@ typedef enum
 
 /** ExprsSymTerm_t - definition of the primitive contents of any
  *  individual term as stored in an external symbol table. The
- *  valid types are a small subset of what the expression parser
- *  would use internally.
+ *  valid types are a subset of what the expression parser would
+ *  use internally.
  **/
 typedef struct
 {
@@ -256,7 +257,7 @@ typedef unsigned char ExprsPrecedence_t;
  */
 #define EXPRS_FLG_USE_RADIX		0x00000001	/*! Use radix to figure out numbers */
 #define EXPRS_FLG_NO_FLOAT		0x00000002	/*! No floating point allowed */
-#define EXPRS_FLG_NO_STRING		0x00000004	/*! No strings allowed */
+#define EXPRS_FLG_NO_STRING		0x00000004	/*! No quoted strings allowed */
 #define EXPRS_FLG_NO_PRECEDENCE	0x00000008	/*! No operator precedence */
 #define EXPRS_FLG_H_HEX			0x00000010	/*! Hex can be expressed with trailing 'h' or 'H' */
 #define EXPRS_FLG_DOLLAR_HEX	0x00000020	/*! Hex can be expressed with trailing '$' */
@@ -267,8 +268,9 @@ typedef unsigned char ExprsPrecedence_t;
 #define EXPRS_FLG_SINGLE_QUOTE	0x00000400	/*! Allow single quoted chars (i.e. 'a vs. 'a' */
 #define EXPRS_FLG_NO_LOGICALS	0x00000800	/*! No logical operators allowed (i.e. mac65 et al) */
 #define EXPRS_FLG_SPECIAL_UNARY	0x00001000	/*! Enable special unary operators (i.e. mac65 et al) */
-#define EXPRS_FLG_NO_ASSIGNMENT	0x00002000	/*! No assignment */
+#define EXPRS_FLG_NO_ASSIGNMENT	0x00002000	/*! No symbol assignments */
 #define EXPRS_FLG_WS_DELIMIT	0x00004000	/*! White space delimits non-operator terms */
+#define EXPRS_FLG_SANITY		0x00008000	/*! Don't allow more than one bump in pool increments */
 
 /** ExprsDef_t - definition of expression stack internal
  *  variables. With the exception of userArg1 and userArg2
@@ -497,6 +499,8 @@ extern ExprsErrs_t libExprsEval(ExprsDef_t *exprs, const char *text, ExprsTerm_t
  *
  **/
 extern ExprsErrs_t libExprsParseToRPN(ExprsDef_t *exprs, const char *text, int alreadyLocked);
+
+extern ExprsErrs_t libExprsWalkParsedStack(ExprsDef_t *exprs, ExprsErrs_t (*walkCallback)(ExprsDef_t *exprs, ExprsTerm_t *term), int alreadyLocked);
 
 /** libExprsXXXPoolTop - get the pointers to the tops of the
  *  various pools.

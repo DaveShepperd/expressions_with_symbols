@@ -364,7 +364,7 @@ static void tblDump(void* pArg, int hashIndex, const HashPrimitive_t *pHashEntry
  * @return 0 on success, non-zero on error.
  **/
 
-int exprsTestHashTbl(int hashTblSize, const char *expression, unsigned long flags, int radix, int verbose)
+int exprsTestHashTbl(int incs, int hashTblSize, const char *expression, unsigned long flags, int radix, int verbose)
 {
 	ExprsCallbacks_t exprsCallbacks;
 	HashCallbacks_t hashCallbacks;
@@ -387,7 +387,7 @@ int exprsTestHashTbl(int hashTblSize, const char *expression, unsigned long flag
 	exprsCallbacks.symGet = getHashSym;
 	exprsCallbacks.symSet = setHashSym;
 	exprsCallbacks.symArg = pHashTable;
-	exprs = libExprsInit(&exprsCallbacks, 0, 0, 0);
+	exprs = libExprsInit(&exprsCallbacks, incs, incs, incs);
 	if ( !exprs )
 	{
 		libHashDestroy(pHashTable,freeEntry,NULL);

@@ -269,6 +269,7 @@
 			<F N="exprs_test_bt.c"/>
 			<F N="exprs_test_ht.c"/>
 			<F N="exprs_test_nos.c"/>
+			<F N="exprs_test_walk.c"/>
 			<F N="libs/lib_btree.c"/>
 			<F N="libs/lib_exprs.c"/>
 			<F N="libs/lib_hashtbl.c"/>
@@ -282,6 +283,7 @@
 			<F N="exprs_test_bt.h"/>
 			<F N="exprs_test_ht.h"/>
 			<F N="exprs_test_nos.h"/>
+			<F N="exprs_test_walk.h"/>
 			<F N="libs/lib_btree.h"/>
 			<F N="libs/lib_exprs.h"/>
 			<F N="libs/lib_hashtbl.h"/>

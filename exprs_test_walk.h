@@ -1,5 +1,5 @@
 /*
-    exprs_test_ht.h - simple test code for lib_exprs.[ch].
+    exprs_test_nos.h - simple test code for lib_exprs.[ch].
     Copyright (C) 2022 David Shepperd
 
     This program is free software: you can redistribute it and/or modify
@@ -15,10 +15,10 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef _EXPRS_TEST_HT_H_
-#define _EXPRS_TEST_HT_H_ (1)
+#ifndef _EXPRS_TEST_WALK_H_
+#define _EXPRS_TEST_WALK_H_ (1)
 
-extern int exprsTestHashTbl(int incs, int hashTblSize, const char *expression, unsigned long flags, int radix, int verbose);
+extern int exprsTestWalk(int incs, const char *expression, unsigned long flags, int radix, int verbose);
 
-#endif	/* _EXPRS_TEST_HT_H_ */
+#endif	/* _EXPRS_TEST_NOS_H_ */
 

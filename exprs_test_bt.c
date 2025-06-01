@@ -407,7 +407,7 @@ static ExprsErrs_t setBtreeSym(void *symArg, const char *name, const ExprsSymTer
 	return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 }
 
-int exprsTestBtree(int btreeSize, const char *expression, unsigned long flags, int radix, int verbose)
+int exprsTestBtree(int incs, int btreeSize, const char *expression, unsigned long flags, int radix, int verbose)
 {
 	ExprsCallbacks_t ourCallbacks;
 	BtreeCallbacks_t btCallbacks;
@@ -440,7 +440,7 @@ int exprsTestBtree(int btreeSize, const char *expression, unsigned long flags, i
 	ourCallbacks.symGet = getBtreeSym;
 	ourCallbacks.symSet = setBtreeSym;
 	pBtreeTable->pUser1 = &memStats;
-	exprs = libExprsInit(&ourCallbacks, 0, 0, 0);
+	exprs = libExprsInit(&ourCallbacks, incs, incs, incs);
 	if ( !exprs )
 	{
 		fprintf(stderr,"Out of memory doing libExprsInit()\n");
