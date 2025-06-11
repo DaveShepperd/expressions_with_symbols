@@ -144,17 +144,19 @@ static ExprsErrs_t getHashSym(void *symArg, const char *name, ExprsSymTerm_t *va
 		switch (found->value.termType)
 		{
 		case EXPRS_SYM_TERM_INTEGER:
-			value->term.s64 = found->value.term.s64;
+			value->value.s64 = found->value.value.s64;
 			break;
 		case EXPRS_SYM_TERM_FLOAT:
-			value->term.f64 = found->value.term.f64;
+			value->value.f64 = found->value.value.f64;
 			break;
 		case EXPRS_SYM_TERM_STRING:
-			value->term.string = found->value.term.string;
+			value->value.string = found->value.value.string;
 			break;
 		case EXPRS_SYM_TERM_COMPLEX:
-			value->term.complex = found->value.term.complex;
+			value->value.complex = found->value.value.complex;
 			break;
+		default:
+			return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 		}
 		return EXPR_TERM_GOOD;
 	}
@@ -180,7 +182,7 @@ static void freeEntry(void *freeArg, HashEntry_t entry)
 	free((void *)ent->name);
 	/* if the value is a string, free it too */
 	if ( ent->value.termType == EXPRS_SYM_TERM_STRING )
-		free(ent->value.term.string);
+		free(ent->value.value.string);
 	/* free the entry itself */
 	free(ent);
 }
@@ -222,29 +224,29 @@ static ExprsErrs_t setHashSym(void *symArg, const char *name, const ExprsSymTerm
 		/* Since there is one already, there is no need to duplicate the name string. */
 		/* But make a note if the current value is a string */
 		if ( found->value.termType == EXPRS_SYM_TERM_STRING )
-			oldStr = found->value.term.string;
+			oldStr = found->value.value.string;
 		/* just smack the contents of the current entry pointed to by 'found' */
 		switch (value->termType)
 		{
 		case EXPRS_SYM_TERM_FLOAT:
-			found->value.term.f64 = value->term.f64;
+			found->value.value.f64 = value->value.f64;
 			break;
 		case EXPRS_SYM_TERM_INTEGER:
-			found->value.term.s64 = value->term.s64;
+			found->value.value.s64 = value->value.s64;
 			break;
 		case EXPRS_SYM_TERM_STRING:
 			if ( oldStr )
 			{
 				/* we're changing the string. Just do a simple check to see if they are the same */
-				if ( !strcmp( value->term.string, oldStr ) )
+				if ( !strcmp( value->value.string, oldStr ) )
 					return EXPR_TERM_GOOD; /* nothing is different. Just leave it be */
 			}
-			len = strlen(value->term.string)+1;
+			len = strlen(value->value.string)+1;
 			tStr = (char *)malloc(len);
 			if ( !tStr )
 				return EXPR_TERM_BAD_OUT_OF_MEMORY;
-			strncpy(tStr, value->term.string, len);
-			found->value.term.string = tStr;
+			strncpy(tStr, value->value.string, len);
+			found->value.value.string = tStr;
 			break;
 		default:
 			return EXPR_TERM_BAD_UNSUPPORTED;
@@ -274,21 +276,21 @@ static ExprsErrs_t setHashSym(void *symArg, const char *name, const ExprsSymTerm
 	{
 	case EXPRS_SYM_TERM_STRING:
 		/* malloc space for the value string */
-		len = strlen(value->term.string)+1;
+		len = strlen(value->value.string)+1;
 		if ( !(tStr = (char *)malloc(len)) )
 		{
 			freeEntry(NULL,(HashEntry_t)ent);
 			return EXPR_TERM_BAD_OUT_OF_MEMORY;
 		}
 		/* copy the string and record a pointer to it */
-		strncpy(tStr, value->term.string,len);
-		ent->value.term.string = tStr;
+		strncpy(tStr, value->value.string,len);
+		ent->value.value.string = tStr;
 		break;
 	case EXPRS_SYM_TERM_FLOAT:
-		ent->value.term.f64 = value->term.f64;
+		ent->value.value.f64 = value->value.f64;
 		break;
 	case EXPRS_SYM_TERM_INTEGER:
-		ent->value.term.s64 = value->term.s64;
+		ent->value.value.s64 = value->value.s64;
 		break;
 	default:
 		freeEntry(NULL,(HashEntry_t)ent);
@@ -332,13 +334,13 @@ static void tblDump(void* pArg, int hashIndex, const HashPrimitive_t *pHashEntry
 		switch (ent->value.termType)
 		{
 		case EXPRS_TERM_INTEGER:
-			len += snprintf(buf + len, sizeof(buf) - len, "(int)%ld}", ent->value.term.s64);
+			len += snprintf(buf + len, sizeof(buf) - len, "(int)%ld}", ent->value.value.s64);
 			break;
 		case EXPRS_TERM_FLOAT:
-			len += snprintf(buf + len, sizeof(buf) - len, "(double)%g}", ent->value.term.f64);
+			len += snprintf(buf + len, sizeof(buf) - len, "(double)%g}", ent->value.value.f64);
 			break;
 		case EXPRS_TERM_STRING:
-			len += snprintf(buf + len, sizeof(buf) - len, "(char)'%s'}", ent->value.term.string);
+			len += snprintf(buf + len, sizeof(buf) - len, "(char)'%s'}", ent->value.value.string);
 			break;
 		default:
 			len += snprintf(buf + len, sizeof(buf) - len, " UNDEFINED type %d}", ent->value.termType);
@@ -395,13 +397,13 @@ int exprsTestHashTbl(int incs, int hashTblSize, const char *expression, unsigned
 	}
 	/* pre-populate the symbol table with some entries to play with */
 	tmpSym.termType = EXPRS_TERM_INTEGER;
-	tmpSym.term.s64 = 100;
+	tmpSym.value.s64 = 100;
 	setHashSym(pHashTable,"foobar",&tmpSym);
 	tmpSym.termType = EXPRS_TERM_INTEGER;
-	tmpSym.term.s64 = 1000;
+	tmpSym.value.s64 = 1000;
 	setHashSym(pHashTable,"oneThousand",&tmpSym);
 	tmpSym.termType = EXPRS_TERM_FLOAT;
-	tmpSym.term.f64 = 3.14159;
+	tmpSym.value.f64 = 3.14159;
 	setHashSym(pHashTable,"pi",&tmpSym);
 	libExprsSetVerbose(exprs,verbose,NULL);
 	libExprsSetFlags(exprs,flags,NULL);
@@ -425,6 +427,8 @@ int exprsTestHashTbl(int incs, int hashTblSize, const char *expression, unsigned
 		{
 			char quote, *cp = libExprsStringPoolTop(exprs) + result.term.string;
 			unsigned char cc;
+			if ( (result.flags&EXPRS_TERM_FLAG_LOCAL_SYMBOL) )
+				printf("(local)");
 			quote = strchr(cp,'"') ? '\'':'"';
 			printf("%c",quote);
 			while ( (cc = *cp) )

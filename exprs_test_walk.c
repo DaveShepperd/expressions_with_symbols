@@ -62,7 +62,7 @@ static void printString(const char *str)
 	printf("%c\n", quote);
 }
 
-static ExprsErrs_t showTerm(ExprsDef_t *exprs, ExprsTerm_t *term)
+static ExprsErrs_t showTerm(ExprsDef_t *exprs, const ExprsTerm_t *term)
 {
 	printf("Returned: type=%d, value=", term->termType );
 	switch (term->termType)
@@ -79,6 +79,8 @@ static ExprsErrs_t showTerm(ExprsDef_t *exprs, ExprsTerm_t *term)
 		break;
 	case EXPRS_TERM_SYMBOL:
 		printf("Symbol:");
+		if ( (term->flags&EXPRS_TERM_FLAG_LOCAL_SYMBOL) )
+			printf("(local)");
 		printString(libExprsStringPoolTop(exprs) + term->term.string);
 		break;
 	case EXPRS_TERM_FUNCTION:/* Function call (not supported yet) */

@@ -41,6 +41,30 @@ static struct option long_options[] =
 				   {0,         0,                 0,  0 }
                };
 
+static const char FlagsDescription[] =
+"The flags option is a bit mask to control parser:\n" 
+"0x00000001	= Use radix to figure out numbers\n"
+"0x00000002	= No floating point allowed\n"
+"0x00000004	= No quoted strings allowed\n"
+"0x00000008	= No operator precedence\n"
+"0x00000010	= Hex can be expressed with trailing 'h' or 'H'\n"
+"0x00000020	= Hex can be expressed with leading '$'\n"
+"0x00000040	= Hex can be expressed with trailing '$'\n"
+"0x00000080	= Octal can be expressed with trailing 'o' or 'O'\n"
+"0x00000100	= Octal can be expressed with trailing 'q' or 'Q'\n"
+"0x00000200	= Decimal can be expressed with trailing '.' (forces flag 0x2 = NO_FLOAT)\n"
+"0x00000400	= No exponent allowed ('**' construct)\n"
+"0x00000800	= Allow single quoted chars (i.e. 'a vs. 'a'; forces flag 0x4 = NO_STRINGS)\n"
+"0x00001000	= No logical operators allowed (i.e. those not found in mac6x, mac11, etc.)\n"
+"0x00002000	= Enable special unary operators (i.e. those found in mac6x, mac11, etc.)\n"
+"0x00004000	= No symbol assignments\n"
+"0x00008000	= White space delimits all terms\n"
+"0x00010000	= Don't allow more than one bump in pool increments\n"
+"0x00020000	= Local symbols are expressed via decimalNumber$ (cannot be combined with POST_DOLLAR_HEX)\n"
+"0x00040000	= Symbols can begin with leading period (.) (forces flag 0x2 = NO_FLOAT)\n"
+"0x00080000	= Symbols can begin with leading dollar sign ($) (cannot be combined with flag 0x20)\n"
+;
+
 static int helpEm(const char *ourName)
 {
 	fprintf(stderr, "Usage: %s [-b num] [-s hashSize] [-tv] expression\n",
@@ -49,12 +73,14 @@ static int helpEm(const char *ourName)
 			"-b num   [or --btree=num]    test using btree symbols. num=maxSize.\n"
 			"-i incs  [or --incs=num]     set all the pool increments\n"
 			"-f flags [or --flags=flgs]   set flag bits\n"
-			"-r radix [or --radix=rad]    set the default radix\n"
+			"-r radix [or --radix=rad]    set the default radix (also sets 0x1 in flags)\n"
 			"-s size  [or --hash=size]    set hash table size (default=0)\n"
 			"-t       [or --test]         execute the full expressin parser tester\n"
 			"-v       [or --verbose]      increment verbose mode\n"
 			"-w       [or --walk]         use the walk feature\n"
+			"\n"
 			);
+	fputs(FlagsDescription, stderr);
 	return 1;
 }
 

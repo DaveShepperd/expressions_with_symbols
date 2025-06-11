@@ -182,7 +182,7 @@ static void freeEntry(void *freeArg, void *pEntry)
 	lclFree(freeArg,(void *)ent->name);
 	/* if the value is a string, free it too */
 	if ( ent->value.termType == EXPRS_SYM_TERM_STRING )
-		lclFree(freeArg,ent->value.term.string);
+		lclFree(freeArg, ent->value.value.string);
 	/* free the entry itself */
 	lclFree(freeArg,ent);
 }
@@ -253,37 +253,45 @@ static int btreeCmp(void *symArg, const BtreeEntry_t aa, const BtreeEntry_t bb)
  * At entry:
  * @param symArg - pointer to symbol table control struct.
  * @param name - name of symbol to lookup
- * @param value - pointer to place to deposit result
+ * @param dst - pointer to place to deposit result
  * 
  * @return 0 on success, non-zero on error. If success, symbol
  *  	   value will be deposited where argument 'value'
  *  	   points.
  **/
-static ExprsErrs_t getBtreeSym(void *userArg, const char *name, ExprsSymTerm_t *value)
+static ExprsErrs_t getBtreeSym(void *userArg, const char *name, ExprsSymTerm_t *dst)
 {
 	BtreeControl_t *pTable=(BtreeControl_t *)userArg;
 	SymbolTableEntry_t ent, *found;
 	ent.name = name;
 	if ( !libBtreeFind(pTable,(const BtreeEntry_t)&ent,(BtreeEntry_t *)&found,0) )
 	{
-		value->termType = found->value.termType;
+		dst->termType = found->value.termType;
+		dst->flags = 0;
+		dst->symbolExtra = (const void *)name;
 		switch (found->value.termType)
 		{
 		case EXPRS_SYM_TERM_INTEGER:
-			value->term.s64 = found->value.term.s64;
+			dst->value.s64 = found->value.value.s64;
 			break;
 		case EXPRS_SYM_TERM_FLOAT:
-			value->term.f64 = found->value.term.f64;
+			dst->value.f64 = found->value.value.f64;
 			break;
 		case EXPRS_SYM_TERM_STRING:
-			value->term.string = found->value.term.string;
+			dst->value.string = found->value.value.string;
 			break;
 		case EXPRS_SYM_TERM_COMPLEX:
-			value->term.complex = found->value.term.complex;
+			dst->value.complex = found->value.value.complex;
 			break;
+		default:
+			fprintf(stderr,"getBtreeSym(): Undefined termtype %d\n", found->value.termType);
 		}
 		return EXPR_TERM_GOOD;
 	}
+	dst->termType = EXPRS_SYM_TERM_NULL;
+	dst->flags = 0;
+	dst->symbolExtra = NULL;
+	dst->value.f64 = 0;
 	return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 }
 
@@ -317,48 +325,49 @@ static ExprsErrs_t setBtreeSym(void *symArg, const char *name, const ExprsSymTer
 {
 	BtreeControl_t *pTable=(BtreeControl_t *)symArg;
 	MemStats_t *pMemStats = (MemStats_t *)pTable->pUser1;
-	SymbolTableEntry_t tEnt, *ent, *found=NULL;
+	SymbolTableEntry_t tEnt, *ent, *dst;
 	char *tStr;
 	int len;
 
 	tEnt.name = name;
 	/* first lookup the symbol to see if there is one already */
-	if ( !libBtreeFind(pTable,(const BtreeEntry_t)&tEnt,(BtreeEntry_t *)&found,0) )
+	if ( !libBtreeFind(pTable,(const BtreeEntry_t)&tEnt,(BtreeEntry_t *)&dst,0) )
 	{
 		char *oldStr=NULL;
 		/* Since there is one already, there is no need to duplicate the name string. */
 		/* But make a note if the current value is a string */
-		if ( found->value.termType == EXPRS_SYM_TERM_STRING )
-			oldStr = found->value.term.string;
+		if ( dst->value.termType == EXPRS_SYM_TERM_STRING )
+			oldStr = dst->value.value.string;
 		/* just smack the contents of the current entry pointed to by 'found' */
 		switch (value->termType)
 		{
 		case EXPRS_SYM_TERM_FLOAT:
-			found->value.term.f64 = value->term.f64;
+			dst->value.value.f64 = value->value.f64;
 			break;
 		case EXPRS_SYM_TERM_INTEGER:
-			found->value.term.s64 = value->term.s64;
+			dst->value.value.s64 = value->value.s64;
 			break;
 		case EXPRS_SYM_TERM_STRING:
 			if ( oldStr )
 			{
 				/* we're changing the string. Just do a simple check to see if they are the same */
-				if ( !strcmp( value->term.string, oldStr ) )
+				if ( !strcmp( value->value.string, oldStr ) )
 					return EXPR_TERM_GOOD; /* nothing is different. Just leave it be */
 			}
-			len = strlen(value->term.string)+1;
+			len = strlen(value->value.string)+1;
 			tStr = (char *)lclAlloc(pMemStats,len);
 			if ( !tStr )
 				return EXPR_TERM_BAD_OUT_OF_MEMORY;
-			strncpy(tStr, value->term.string, len);
-			found->value.term.string = tStr;
+			strncpy(tStr, value->value.string, len);
+			dst->value.value.string = tStr;
 			break;
 		default:
 			return EXPR_TERM_BAD_UNSUPPORTED;
 		}
 		if ( oldStr )
 			lclFree(pMemStats,oldStr);
-		found->value.termType = value->termType;
+		dst->value.termType = value->termType;
+		dst->name = name;
 		return EXPR_TERM_GOOD;
 	}
 	/* No existing symbol table entry. */
@@ -376,26 +385,26 @@ static ExprsErrs_t setBtreeSym(void *symArg, const char *name, const ExprsSymTer
 	memset(ent,0,sizeof(SymbolTableEntry_t));
 	strncpy(tStr,name,len);	/* copy the name string */
 	ent->name = tStr;		/* and record its pointer */
-	ent->value.termType = value->termType;	/* record the term type */
+	ent->value.termType = value->termType; /* record the term type */
 	switch ( value->termType )
 	{
 	case EXPRS_SYM_TERM_STRING:
 		/* malloc space for the value string */
-		len = strlen(value->term.string)+1;
+		len = strlen(value->value.string)+1;
 		if ( !(tStr = (char *)lclAlloc(pMemStats,len)) )
 		{
 			freeEntry(pMemStats,(BtreeEntry_t)ent);
 			return EXPR_TERM_BAD_OUT_OF_MEMORY;
 		}
 		/* copy the string and record a pointer to it */
-		strncpy(tStr, value->term.string,len);
-		ent->value.term.string = tStr;
+		strncpy(tStr, value->value.string,len);
+		ent->value.value.string = tStr;
 		break;
 	case EXPRS_SYM_TERM_FLOAT:
-		ent->value.term.f64 = value->term.f64;
+		ent->value.value.f64 = value->value.f64;
 		break;
 	case EXPRS_SYM_TERM_INTEGER:
-		ent->value.term.s64 = value->term.s64;
+		ent->value.value.s64 = value->value.s64;
 		break;
 	default:
 		freeEntry(pMemStats,ent);
@@ -450,13 +459,13 @@ int exprsTestBtree(int incs, int btreeSize, const char *expression, unsigned lon
 	{
 		/* pre-populate the symbol table with some entries to play with */
 		tmpSym.termType = EXPRS_TERM_INTEGER;
-		tmpSym.term.s64 = 100;
+		tmpSym.value.s64 = 100;
 		setBtreeSym(pBtreeTable,"foobar",&tmpSym);
 		tmpSym.termType = EXPRS_TERM_INTEGER;
-		tmpSym.term.s64 = 1000;
+		tmpSym.value.s64 = 1000;
 		setBtreeSym(pBtreeTable,"oneThousand",&tmpSym);
 		tmpSym.termType = EXPRS_TERM_FLOAT;
-		tmpSym.term.f64 = 3.14159;
+		tmpSym.value.f64 = 3.14159;
 		setBtreeSym(pBtreeTable,"pi",&tmpSym);
 		libExprsSetVerbose(exprs,verbose,NULL);
 		libExprsSetFlags(exprs,flags,NULL);
@@ -480,7 +489,9 @@ int exprsTestBtree(int incs, int btreeSize, const char *expression, unsigned lon
 			{
 				char quote, *cp = libExprsStringPoolTop(exprs) + result.term.string;
 				unsigned char cc;
-				quote = strchr(cp,'"') ? '\'':'"';
+				if ( (result.flags&EXPRS_TERM_FLAG_LOCAL_SYMBOL) )
+					printf("(local)");
+				quote = strchr(cp, '"') ? '\'' : '"';
 				printf("%c",quote);
 				while ( (cc = *cp) )
 				{

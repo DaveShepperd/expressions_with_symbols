@@ -207,23 +207,6 @@ static const TestExprs_t TestExprs[] =
 	{ "1+(2+3)*4", EXPRS_TERM_INTEGER, 1+(2+3)*4, 0, NULL, EXPR_TERM_GOOD },	/* Test parenthesis */
 	{ "1+2*3/4-6", EXPRS_TERM_INTEGER, 1+2*3/4-6, 0, NULL, EXPR_TERM_GOOD },	/* Test precedence */
 	{ "2+2**2*4/2", EXPRS_TERM_INTEGER, 10, 0, NULL, EXPR_TERM_GOOD },			/* Test precedence */
-
-#if 0
-#define EXPRS_FLG_USE_RADIX		0x0001	/*! Use radix to figure out numbers */
-#define EXPRS_FLG_NO_FLOAT		0x0002	/*! No floating point allowed */
-#define EXPRS_FLG_NO_STRING		0x0004	/*! No strings allowed */
-#define EXPRS_FLG_NO_PRECEDENCE	0x0008	/*! No operator precedence */
-#define EXPRS_FLG_H_HEX			0x0010	/*! Hex can be expressed with trailing 'h' or 'H' */
-#define EXPRS_FLG_DOLLAR_HEX	0x0020	/*! Hex can be expressed with trailing '$' */
-#define EXPRS_FLG_O_OCTAL		0x0040	/*! Octal can be expressed with trailing 'o' or 'O' */
-#define EXPRS_FLG_Q_OCTAL		0x0080	/*! Octal can be expressed with trailing 'q' or 'Q' */
-#define EXPRS_FLG_DOT_DECIMAL	0x0100	/*! Decimal can be expressed with trailing '.' */
-#define EXPRS_FLG_NO_POWER		0x0200	/*! No exponent allowed */
-#define EXPRS_FLG_SINGLE_QUOTE	0x0400	/*! Allow single quoted chars (i.e. 'a vs. 'a' */
-#define EXPRS_FLG_NO_LOGICALS	0x0800	/*! No logical operators allowed (i.e. mac65 et al) */
-#define EXPRS_FLG_SPECIAL_UNARY	0x1000	/*! Enable special unary operators (i.e. mac65 et al) */
-#endif
-
 	{ "100", EXPRS_TERM_INTEGER, 4, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_USE_RADIX, 2 },	/* integer number */
 	{ "100", EXPRS_TERM_INTEGER, 64, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_USE_RADIX, 8 },	/* integer number */
 	{ "100", EXPRS_TERM_INTEGER, 100, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_USE_RADIX, 10 },	/* integer number */
@@ -231,6 +214,10 @@ static const TestExprs_t TestExprs[] =
 	{ "0FF", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_USE_RADIX, 16 },	/* integer number */
 	{ "0xFF", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_USE_RADIX, 16 },	/* integer number */
 	{ "300.", EXPRS_TERM_INTEGER, 300, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_NO_FLOAT|EXPRS_FLG_USE_RADIX, 16 },   /* Legit decimal integer */
+	{ "300.", EXPRS_TERM_INTEGER, 300, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_NO_FLOAT|EXPRS_FLG_USE_RADIX, 10 },   /* Legit decimal integer */
+	{ "77o", EXPRS_TERM_INTEGER, 63, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_O_OCTAL },
+	{ "77o", EXPRS_TERM_INTEGER, 63, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_O_OCTAL|EXPRS_FLG_USE_RADIX, 8 },
+	{ "10.", EXPRS_TERM_INTEGER, 10, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_NO_FLOAT, 10 },
 	{ "3.14159", EXPRS_TERM_NULL, 0, 0, NULL, EXPR_TERM_BAD_TOO_FEW_TERMS, EXPRS_FLG_NO_FLOAT },   /* illegal floating point number */
 	{ "'plain string'", EXPRS_TERM_NULL, 0, 0, NULL, EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED, EXPRS_FLG_NO_STRING }, /* no strings */
 	{ "\"plain string\"", EXPRS_TERM_NULL, 0, 0, NULL, EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED, EXPRS_FLG_NO_STRING },  /* no strings */
@@ -240,9 +227,13 @@ static const TestExprs_t TestExprs[] =
 	{ "2+2*2+2", EXPRS_TERM_INTEGER, 10, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_NO_PRECEDENCE },		 /* no precendence */
 	{ "(2+2)*(2+2)", EXPRS_TERM_INTEGER, 16, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_NO_PRECEDENCE },		 /* no precendence */
 	{ "0FFH", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_H_HEX },			/* integer number */
+	{ "0FFH", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_H_HEX|EXPRS_FLG_USE_RADIX, 16 },			/* integer number */
 	{ "123H", EXPRS_TERM_INTEGER, 0x123, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_H_HEX },			/* integer number */
-	{ "0FF$", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_DOLLAR_HEX },			/* integer number */
-	{ "123$", EXPRS_TERM_INTEGER, 0x123, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_DOLLAR_HEX },			/* integer number */
+	{ "123H", EXPRS_TERM_INTEGER, 0x123, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_H_HEX|EXPRS_FLG_USE_RADIX, 16 },			/* integer number */
+	{ "0FF$", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_POST_DOLLAR_HEX },	/* integer number */
+	{ "123$", EXPRS_TERM_INTEGER, 0x123, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_POST_DOLLAR_HEX },	/* integer number */
+	{ "$0FF", EXPRS_TERM_INTEGER, 255, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_PRE_DOLLAR_HEX },	/* integer number */
+	{ "$FFA", EXPRS_TERM_INTEGER, 0xFFA, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_PRE_DOLLAR_HEX },	/* integer number */
 	{ "123o", EXPRS_TERM_INTEGER, 0123, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_O_OCTAL },			/* integer number */
 	{ "456O", EXPRS_TERM_INTEGER, 0456, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_O_OCTAL },			/* integer number */
 	{ "123q", EXPRS_TERM_INTEGER, 0123, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_Q_OCTAL },			/* integer number */
@@ -260,6 +251,12 @@ static const TestExprs_t TestExprs[] =
 	{ "1{2!4}2!5+3?7", EXPRS_TERM_INTEGER, 10, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_SPECIAL_UNARY },
 	{ "1{2!4}2!5+3?7", EXPRS_TERM_INTEGER, 15, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_SPECIAL_UNARY | EXPRS_FLG_NO_PRECEDENCE },
 	{ "<1{2>!<4}2>!<5+3>?<7>", EXPRS_TERM_INTEGER, 10, 0, NULL, EXPR_TERM_GOOD, EXPRS_FLG_SPECIAL_UNARY | EXPRS_FLG_NO_PRECEDENCE },
+};
+
+static const TestExprs_t TestSymbols[] =
+{
+	{ "FOO", EXPRS_TERM_SYMBOL, 0, 0, "FOO", EXPR_TERM_END, EXPRS_FLG_LOCAL_SYMBOLS },   /* regular symbol */
+	{ "123$", EXPRS_TERM_SYMBOL, EXPRS_TERM_FLAG_LOCAL_SYMBOL, 0, "123$", EXPR_TERM_END, EXPRS_FLG_LOCAL_SYMBOLS },   /* local symbol */
 };
 
 static int getValue(ExprsDef_t *exprs, char *buf, int bufLen, const char *title, const ExprsTerm_t *result, const TestExprs_t *tVal)
@@ -338,13 +335,15 @@ int exprsTest(int verbose)
 		err = libExprsEval(exprs, pExp->expr, &result, 0);
 		if ( err != pExp->status )
 		{
-			printf("%3d: Expression '%s' returned error %d: %s, expected %d: %s\n",
+			printf("%3d: Expression '%s' returned error %d: %s, expected %d: %s, flags=0x%lX, radix=%d\n",
 				   ii,
 				   pExp->expr,
 				   err,
 				   libExprsGetErrorStr(err),
 				   pExp->status,
-				   libExprsGetErrorStr(pExp->status)
+				   libExprsGetErrorStr(pExp->status),
+				   pExp->flags,
+				   pExp->radix
 				   );
 			retV = 1;
 			continue;
@@ -386,14 +385,90 @@ int exprsTest(int verbose)
 				sLen = snprintf(buf, sizeof(buf), "%3d: Value mismatch. Expression '%s' ", ii, pExp->expr);
 				sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, "expected",NULL,pExp);
 				sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, ". Got ",&result,NULL);
-				printf("%s\n",buf);
+				printf("%s, flags=0x%lX, radix=%d\n", buf, pExp->flags, pExp->radix);
 				retV = 1;
 			}
 		}
 	}
+	pExp = TestSymbols;
+	for (ii=0; ii < n_elts(TestSymbols) && !fatal; ++ii, ++pExp)
+	{
+		ExprsStack_t *stack;
+		ExprsTerm_t *term;
+		
+		cbPtr = (pExp->status != EXPR_TERM_GOOD) ? &lclCb : NULL;
+		libExprsSetCallbacks(exprs, cbPtr, NULL);
+		libExprsSetFlags(exprs, pExp->flags, NULL);
+		libExprsSetRadix(exprs, pExp->radix, NULL);
+		err = libExprsParseToRPN(exprs, pExp->expr, 0);
+		if ( err != pExp->status )
+		{
+			printf("%3d: Symbol expression '%s' returned error %d: %s, expected %d: %s, flags=0x%lX, radix=%d\n",
+				   ii,
+				   pExp->expr,
+				   err,
+				   libExprsGetErrorStr(err),
+				   pExp->status,
+				   libExprsGetErrorStr(pExp->status),
+				   pExp->flags,
+				   pExp->radix
+				   );
+			retV = 1;
+			continue;
+		}
+		stack = libExprsStackPoolTop(exprs);
+		if ( exprs->mStackPool.mNumUsed != 1 || stack->mTermsPool.mNumUsed != 1 )
+		{
+			printf("%3d: Symbol expression '%s' returned %d stacks. Expected 1. Terms=%d, flags=0x%lX, radix=%d\n",
+				   ii,
+				   pExp->expr,
+				   exprs->mStackPool.mNumUsed,
+				   stack->mTermsPool.mNumUsed,
+				   pExp->flags,
+				   pExp->radix);
+			retV = 1;
+			continue;
+		}
+		if ( *exprs->mCurrPtr )
+		{
+			printf("%3d: Symbol expression '%s' returned with '%s' leftover. Expected nothing. flags=0x%lX, radix=%d\n",
+				   ii, pExp->expr, exprs->mCurrPtr, pExp->flags, pExp->radix);
+			retV = 1;
+			continue;
+		}
+		term = libExprsTermPoolTop(exprs,stack);
+		if ( term->termType != pExp->expectedResultType )
+		{
+			sLen  = snprintf(buf,sizeof(buf),"%3d: Symbol type mismatch. Expression '%s' ", ii, pExp->expr);
+			sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, "expected",NULL,pExp);
+			sLen += getValue(exprs,buf+sLen,sizeof(buf)-sLen, ". Got ",term,NULL);
+			printf("%s\n",buf);
+		}
+		if (    term->termType == EXPRS_TERM_SYMBOL
+			 || term->termType == EXPRS_TERM_SYMBOL_COMPLEX
+			 || term->termType == EXPRS_TERM_STRING
+		   )
+		{
+			char *cp = libExprsStringPoolTop(exprs)+term->term.string;
+			if ( strcmp(pExp->expr, cp) )
+			{
+				printf("%3d: Symbol value mismatch. Expected '%s', got '%s'\n", ii, pExp->expr, cp);
+				retV = 1;
+				continue;
+			}
+			if ( term->flags != pExp->expectedInt )
+			{
+				printf("%3d: Symbol flags mismatch. Expression '%s': Expected 0x%lx, got 0x%X\n", ii, pExp->expr, pExp->expectedInt, term->flags);
+				retV = 1;
+			}
+			continue;
+		}
+		printf("%3d: Symbol expression '%s' unable to verify result. termType=%d\n", ii, pExp->expr, term->termType);
+		retV = 1;
+	}
 	libExprsDestroy(exprs);
 	if ( !retV )
-		printf("Passed all of the %d tests.\n", n_elts(TestExprs));
+		printf("Passed all of the %d tests.\n", n_elts(TestExprs)+n_elts(TestSymbols));
 	return retV;
 }
 

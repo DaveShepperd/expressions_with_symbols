@@ -218,7 +218,8 @@ extern BtreeErrors_t libBtreeDelete(BtreeControl_t *pTable, const BtreeEntry_t e
  *  At entry:
  *  @param pTable - pointer to btree table control.
  *  @param entry - pointer to entry to look for.
- *  @param pResult - pointer to place to deposit result.
+ *  @param pResult - pointer to place to deposit pointer to
+ *  			   result.
  *  @param alreadyLocked - set non-zero if hash table has
  *  					previously been locked by
  *  					libBtreeLock().

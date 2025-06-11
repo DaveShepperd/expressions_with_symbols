@@ -74,6 +74,8 @@ int exprsTestNoSym(int incs, const char *expression, unsigned long flags, int ra
 		{
 			char quote, *cp = libExprsStringPoolTop(exprs) + result.term.string;
 			unsigned char cc;
+			if ( (result.flags&EXPRS_TERM_FLAG_LOCAL_SYMBOL) )
+				printf("(local)");
 			quote = strchr(cp,'"') ? '\'':'"';
 			printf("%c",quote);
 			while ( (cc = *cp) )
