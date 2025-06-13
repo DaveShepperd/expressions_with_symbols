@@ -449,7 +449,7 @@ int exprsTestBtree(int incs, int btreeSize, const char *expression, unsigned lon
 	ourCallbacks.symGet = getBtreeSym;
 	ourCallbacks.symSet = setBtreeSym;
 	pBtreeTable->pUser1 = &memStats;
-	exprs = libExprsInit(&ourCallbacks, incs, incs, incs);
+	exprs = libExprsInit(&ourCallbacks, incs, incs);
 	if ( !exprs )
 	{
 		fprintf(stderr,"Out of memory doing libExprsInit()\n");

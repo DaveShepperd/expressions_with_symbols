@@ -389,7 +389,7 @@ int exprsTestHashTbl(int incs, int hashTblSize, const char *expression, unsigned
 	exprsCallbacks.symGet = getHashSym;
 	exprsCallbacks.symSet = setHashSym;
 	exprsCallbacks.symArg = pHashTable;
-	exprs = libExprsInit(&exprsCallbacks, incs, incs, incs);
+	exprs = libExprsInit(&exprsCallbacks, incs, incs);
 	if ( !exprs )
 	{
 		libHashDestroy(pHashTable,freeEntry,NULL);

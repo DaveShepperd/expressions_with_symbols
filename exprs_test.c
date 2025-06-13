@@ -317,7 +317,7 @@ int exprsTest(int verbose)
 	int sLen;
 	ExprsCallbacks_t lclCb, *cbPtr=NULL;
 
-	exprs = libExprsInit(NULL, 0, 0, 0);
+	exprs = libExprsInit(NULL, 0, 0);
 	if ( !exprs )
 	{
 		fprintf(stderr,"Out of memory doing libExprsInit()\n");
@@ -416,13 +416,12 @@ int exprsTest(int verbose)
 			retV = 1;
 			continue;
 		}
-		stack = libExprsStackPoolTop(exprs);
-		if ( exprs->mStackPool.mNumUsed != 1 || stack->mTermsPool.mNumUsed != 1 )
+		stack = &exprs->mStack;
+		if ( stack->mTermsPool.mNumUsed != 1 )
 		{
-			printf("%3d: Symbol expression '%s' returned %d stacks. Expected 1. Terms=%d, flags=0x%lX, radix=%d\n",
+			printf("%3d: Symbol expression '%s' returned terms=%d. expected 1. flags=0x%lX, radix=%d\n",
 				   ii,
 				   pExp->expr,
-				   exprs->mStackPool.mNumUsed,
 				   stack->mTermsPool.mNumUsed,
 				   pExp->flags,
 				   pExp->radix);

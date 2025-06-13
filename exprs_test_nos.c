@@ -46,7 +46,7 @@ int exprsTestNoSym(int incs, const char *expression, unsigned long flags, int ra
 	ExprsErrs_t err;
 	int retV=0;
 	
-	exprs = libExprsInit(NULL, incs, incs, incs);
+	exprs = libExprsInit(NULL, incs, incs);
 	if ( !exprs )
 	{
 		fprintf(stderr,"Out of memory doing libExprsInit()\n");

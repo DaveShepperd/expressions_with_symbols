@@ -64,9 +64,7 @@
 typedef enum
 {
 	ExprsPoolNull,
-	ExprsPoolStacks,
 	ExprsPoolTerms,
-	ExprsPoolOpers,
 	ExprsPoolString
 } ExprsPoolID_t;
 
@@ -91,7 +89,6 @@ typedef enum
 	 * precedence.
 	 **/
 	EXPRS_TERM_NULL,
-	EXPRS_TERM_LINK,	/* link to another stack */
 	EXPRS_TERM_SYMBOL,	/* Symbol */
 	EXPRS_TERM_SYMBOL_COMPLEX, /* Complex symbol */
 	EXPRS_TERM_FUNCTION,/* Function call (not supported yet) */
@@ -156,8 +153,7 @@ typedef struct
  **/
 typedef struct
 {
-	ExprsPool_t mTermsPool;			/* pool of terms for this stack */
-	ExprsPool_t mOpersPool;			/* pool of operators for this stack */
+	ExprsPool_t mTermsPool;			/* pool of terms for stack */
 } ExprsStack_t;
 
 /** ExprsErrs_t - definition of errors that may be returned
@@ -303,10 +299,9 @@ typedef struct
 	void *userArg2;					/*! can be used for any purpose */
 	ExprsCallbacks_t mCallbacks;	/*! callbacks to be used by the parser */
 	unsigned int mVerbose;			/*! verbose flags */
-	int mStackPoolInc;				/*! stack pool increment */
 	int mTermsPoolInc;				/*! term pool increment */
 	int mStringPoolInc;				/*! string pool increment */
-	ExprsPool_t mStackPool;			/*! stack pool */
+	ExprsStack_t mStack;			/*! expression stack */
 	ExprsPool_t mStringPool;		/*! string pool */
 	const char *mCurrPtr;			/*! Pointer to current place in expression string being processed */
 	const char *mLineHead;			/*! Pointer to first character in expression string */
@@ -317,13 +312,15 @@ typedef struct
 	const ExprsPrecedence_t *precedencePtr; /*! Pointer to our precedence table */
 } ExprsDef_t;
 
+#ifndef EXPRS_MAX_NEST
+#define EXPRS_MAX_NEST (128)		/*! A sanity check */
+#endif
+
 /** libExprsInit - Initialize an expression parser.
  *
  *  At entry:
  * @param callbacks - pointer to list of various callbacks the
  *  				parser is to use.
- * @param stackIncs - sets the number of stacks added at one
- *  				time. If 0, the default is set to 8.
  * @param termIncs - sets the number of terms added when needed.
  *  			   If 0, a default is set to 32.
  * @param stringIncs - sets the number of bytes for strings
@@ -338,7 +335,7 @@ typedef struct
  *  	 ExprsDef_t struct. The struct pointed to by 'callbacks'
  *  	 does not need to remain in static memory.
  **/
-extern ExprsDef_t *libExprsInit(const ExprsCallbacks_t *callbacks, int stackIncs, int termIncs, int stringIncs);
+extern ExprsDef_t *libExprsInit(const ExprsCallbacks_t *callbacks,  int termIncs, int stringIncs);
 
 /** libExprsDestroy - free all the previously allocated
  *  memory used by the expression parser.
@@ -532,9 +529,7 @@ extern ExprsErrs_t libExprsWalkParsedStack(ExprsDef_t *exprs, ExprsErrs_t (*walk
  *  At exit:
  *  @return pointer to top of selected pool.
  **/
-extern ExprsStack_t *libExprsStackPoolTop(ExprsDef_t *exprs);
 extern ExprsTerm_t *libExprsTermPoolTop(ExprsDef_t *exprs, ExprsStack_t *stack);
-extern ExprsTerm_t *libExprsOpersPoolTop(ExprsDef_t *exprs, ExprsStack_t *stack);
 extern char *libExprsStringPoolTop(ExprsDef_t *exprs);
 
 /** libExprsLock - lock the hash table.

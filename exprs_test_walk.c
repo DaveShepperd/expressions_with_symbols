@@ -142,7 +142,7 @@ int exprsTestWalk(int incs, const char *expression, unsigned long flags, int rad
 	memset(&exprsCallbacks,0,sizeof(ExprsCallbacks_t));
 	exprsCallbacks.symGet = getSym;	/* dummy function (won't be called) */
 	
-	exprs = libExprsInit(&exprsCallbacks, incs, incs, incs);
+	exprs = libExprsInit(&exprsCallbacks, incs, incs);
 	if ( !exprs )
 	{
 		fprintf(stderr,"Out of memory doing libExprsInit()\n");
@@ -159,17 +159,12 @@ int exprsTestWalk(int incs, const char *expression, unsigned long flags, int rad
 	}
 	else
 	{
-		int ii;
 		ExprsStack_t *stack;
 		
 		if ( *exprs->mCurrPtr )
 			printf("Left over text: '%s'\n", exprs->mCurrPtr);
-		printf("Parse returned stack with %d stack%s\n", exprs->mStackPool.mNumUsed,exprs->mStackPool.mNumUsed==1?"":"s");
-		stack = libExprsStackPoolTop(exprs);
-		for (ii=0; ii < exprs->mStackPool.mNumUsed; ++ii,++stack)
-		{
-			printf("  Stack %d: nTerms=%d, nOpers=%d\n", ii, stack->mTermsPool.mNumUsed, stack->mOpersPool.mNumUsed);
-		}
+		stack = &exprs->mStack;
+		printf("  Stack nTerms=%d\n", stack->mTermsPool.mNumUsed);
 		err = libExprsWalkParsedStack(exprs, showTerm, 0);
 		if ( err )
 		{
