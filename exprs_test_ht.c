@@ -141,6 +141,9 @@ static ExprsErrs_t getHashSym(void *symArg, const char *name, ExprsSymTerm_t *va
 	if ( !libHashFind(pTable,(const HashEntry_t)&ent,(HashEntry_t *)&found,0) )
 	{
 		value->termType = found->value.termType;
+		value->flags = found->value.flags;
+		value->user1 = found->value.user1;
+		value->user2 = found->value.user2;
 		switch (found->value.termType)
 		{
 		case EXPRS_SYM_TERM_INTEGER:
@@ -153,7 +156,6 @@ static ExprsErrs_t getHashSym(void *symArg, const char *name, ExprsSymTerm_t *va
 			value->value.string = found->value.value.string;
 			break;
 		case EXPRS_SYM_TERM_COMPLEX:
-			value->value.complex = found->value.value.complex;
 			break;
 		default:
 			return EXPR_TERM_BAD_UNDEFINED_SYMBOL;

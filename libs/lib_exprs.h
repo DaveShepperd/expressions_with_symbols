@@ -21,6 +21,10 @@
 
 #include <pthread.h>
 
+#include "lib_formats.h"
+#define OPERSTUFF_GET_ENUM 1
+#include "lib_operstuff.h"
+
 #ifndef n_elts
 #define n_elts(x) (int)(sizeof(x)/sizeof(x[0]))
 #endif
@@ -57,10 +61,6 @@
  * 5.
  */
 
-#ifndef _FMT_LD_
-#define _FMT_LD_ "%ld"
-#endif
-
 typedef enum
 {
 	ExprsPoolNull,
@@ -78,55 +78,12 @@ typedef struct
 	ExprsPoolID_t mPoolID;
 } ExprsPool_t;
 
-/** ExprsTermTypes_t - Ident of the various types of terms
- *  that may be parsed.
- **/
-typedef enum
-{
-	/**
-	 * If any of this is changed, be sure to also change the
-	 * Precedence[] table found in lib_exprs.c to reflect the actual
-	 * precedence.
-	 **/
-	EXPRS_TERM_NULL,
-	EXPRS_TERM_SYMBOL,	/* Symbol */
-	EXPRS_TERM_SYMBOL_COMPLEX, /* Complex symbol */
-	EXPRS_TERM_FUNCTION,/* Function call (not supported yet) */
-	EXPRS_TERM_STRING,	/* Text string (text delimited with quotes) */
-	EXPRS_TERM_FLOAT,	/* floating point number */
-	EXPRS_TERM_INTEGER,	/* integer number */
-	EXPRS_TERM_PLUS,	/* + (unary term in this case) */
-	EXPRS_TERM_MINUS,	/* - (unary term in this case) */
-	EXPRS_TERM_COM,		/* ~ */
-	EXPRS_TERM_NOT,		/* ! */
-	EXPRS_TERM_HIGH_BYTE, /* high byte */
-	EXPRS_TERM_LOW_BYTE,/* low byte */
-	EXPRS_TERM_XCHG,	/* exchange bytes */
-	EXPRS_TERM_POW,		/* ** */
-	EXPRS_TERM_MUL,		/* * */
-	EXPRS_TERM_DIV,		/* / */
-	EXPRS_TERM_MOD,		/* % */
-	EXPRS_TERM_ADD,		/* + (binary terms in this case) */
-	EXPRS_TERM_SUB,		/* - (binary terms in this case) */
-	EXPRS_TERM_ASL,		/* << */
-	EXPRS_TERM_ASR,		/* >> */
-	EXPRS_TERM_GT,		/* > */
-	EXPRS_TERM_GE,		/* >= */
-	EXPRS_TERM_LT,		/* < */
-	EXPRS_TERM_LE,		/* <= */
-	EXPRS_TERM_EQ,		/* == */
-	EXPRS_TERM_NE,		/* != */
-	EXPRS_TERM_AND,		/* & */
-	EXPRS_TERM_XOR,		/* ^ */
-	EXPRS_TERM_OR,		/* | */
-	EXPRS_TERM_LAND,	/* && */
-	EXPRS_TERM_LOR,		/* || */
-	EXPRS_TERM_ASSIGN	/* = */
-} ExprsTermTypes_t;
-
-#define EXPRS_TERM_FLAG_LOCAL_SYMBOL	(0x01)	/* term is a local symbol */
-#define EXPRS_TERM_FLAG_REGISTER		(0x02)	/* term is a register */
-#define EXPRS_TERM_FLAG_COMPLEX			(0x04)	/* symbol value is complex */
+#define EXPRS_TERM_FLAG_LOCAL_SYMBOL	(0x001)	/* term is a local symbol */
+#define EXPRS_TERM_FLAG_REGISTER		(0x002)	/* term is a register */
+#define EXPRS_TERM_FLAG_COMPLEX			(0x004)	/* symbol value is complex */
+#define EXPRS_TERM_FLAG_BYTE			(0x008)	/* term qualified as byte (68k) */
+#define EXPRS_TERM_FLAG_WORD			(0x010)	/* term qualified as word (68k) */
+#define EXPRS_TERM_FLAG_LONG			(0x020)	/* term qualified as long (68k) */
 
 /** ExprsTerm_t - definition of the primitive contents of any
  *  individual term.
@@ -140,13 +97,14 @@ typedef struct
 	union
 	{
 		int link;		/* Index to a different stack */
-		int string;		/* Index into the string pool if type is string */
+		size_t string;	/* Index into the string pool if type is string */
 		double f64;
-		long s64;
-		unsigned long u64;
+		int64_t s64;
+		uint64_t u64;
 		char oper[4];
-		void *complex;
 	} term;
+	const void *user1;		/* use for whatever purpose */
+	void *user2;
 } ExprsTerm_t;
 
 /** ExprsStack_t - definition of a expression stack
@@ -155,41 +113,6 @@ typedef struct
 {
 	ExprsPool_t mTermsPool;			/* pool of terms for stack */
 } ExprsStack_t;
-
-/** ExprsErrs_t - definition of errors that may be returned
- *  by the various expression functions.
- **/
-typedef enum
-{
-	EXPR_TERM_GOOD,
-	EXPR_TERM_END,
-	EXPR_TERM_COMPLEX_VALUE,
-	EXPR_TERM_BAD_OUT_OF_MEMORY,
-	EXPR_TERM_BAD_NO_STRING_TERM,
-	EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED,
-	EXPR_TERM_BAD_SYMBOL_SYNTAX,
-	EXPR_TERM_BAD_SYMBOL_TOO_LONG,
-	EXPR_TERM_BAD_NUMBER,
-	EXPR_TERM_BAD_UNARY,
-	EXPR_TERM_BAD_OPER,
-	EXPR_TERM_BAD_SYNTAX,
-	EXPR_TERM_BAD_TOO_MANY_TERMS,
-	EXPR_TERM_BAD_TOO_MANY_STACKS,
-	EXPR_TERM_BAD_TOO_FEW_TERMS,
-	EXPR_TERM_BAD_NO_TERMS,
-	EXPR_TERM_BAD_NO_CLOSE,
-	EXPR_TERM_BAD_UNSUPPORTED,
-	EXPR_TERM_BAD_DIV_BY_0,
-	EXPR_TERM_BAD_UNDEFINED_SYMBOL,
-	EXPR_TERM_BAD_NO_SYMBOLS,
-	EXPR_TERM_BAD_SYMBOL_TABLE_FULL,
-	EXPR_TERM_BAD_LVALUE,
-	EXPR_TERM_BAD_RVALUE,
-	EXPR_TERM_BAD_PARAMETER,
-	EXPR_TERM_BAD_NOLOCK,		/*! error doing pthread lock. See errno for additional error. */
-	EXPR_TERM_BAD_NOUNLOCK,		/*! error doing pthread unlock. See errno for additional error. */
-	EXPR_TERM_BAD_UNDEFINED
-} ExprsErrs_t;
 
 /** ExprsSymTermTypes_t - definition of the subset of types
  *  of terms stored in an external symbol table.
@@ -211,15 +134,15 @@ typedef enum
 typedef struct
 {
 	ExprsSymTermTypes_t termType;	/* type of item this is */
-	const void *symbolExtra;		/* use for anything */
 	int flags;
 	union
 	{
 		char *string;
 		double f64;
 		long s64;
-		void *complex;				/* defined by user */
 	} value;
+	const void *user1;				/* defined by user */
+	void *user2;
 } ExprsSymTerm_t;
 
 /** ExprsMsgSeverity_t - define the severity of messages that
@@ -286,7 +209,12 @@ typedef unsigned char ExprsPrecedence_t;
 #define EXPRS_FLG_SANITY			0x00010000	/*! Don't allow more than one bump in pool increments */
 #define EXPRS_FLG_LOCAL_SYMBOLS		0x00020000	/*! Local symbols are expressed via decimalNumber$ (cannot be combined with POST_DOLLAR_HEX) */
 #define EXPRS_FLG_DOT_SYMBOL		0x00040000	/*! Symbols can begin with leading period (.) (forces flag 0x2 = NO_FLOAT) */
-#define EXPRS_FLG_PCNT_IS_REGISTER	0x00080000	/*! A unary '%' means term is a register */
+#define EXPRS_FLG_SYM_LEAD_DOLLAR	0x00080000	/*! Symbols can begin with leading dollar sign ($) */
+#define EXPRS_FLG_LEN_QUALIFIERS	0x00100000	/*! Operands can have a length qualifier */
+#define EXPRS_FLG_PCNT_REGISTER		0x00200000	/*!  A unary '%' means term is a register */
+#define EXPRS_FLG_NO_DOUBLE_PLAIN	0x00400000	/*! term cannot be double plain */
+#define EXPRS_FLG_OPEN_IS_END		0x00800000	/*! Open delimiter ends expression */
+#define EXPRS_FLG_CLOSE_IS_END		0x01000000	/*! Close delimiter ends expression */
 
 /** ExprsDef_t - definition of expression stack internal
  *  variables. With the exception of userArg1 and userArg2
@@ -310,6 +238,7 @@ typedef struct
 	char mOpenDelimiter;			/*! Open expression delimiter */
 	char mCloseDelimiter;			/*! Close expression delimiter */
 	const ExprsPrecedence_t *precedencePtr; /*! Pointer to our precedence table */
+	const uint16_t *chMaskPtr;		/*! Pointer to check mask */
 } ExprsDef_t;
 
 #ifndef EXPRS_MAX_NEST

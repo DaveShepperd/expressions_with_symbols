@@ -87,10 +87,10 @@ static ExprsErrs_t showTerm(ExprsDef_t *exprs, const ExprsTerm_t *term)
 		printf("Function:");
 		printString(libExprsStringPoolTop(exprs) + term->term.string);
 		break;
-	case EXPRS_TERM_PLUS:	/* + (unary term in this case) */
+	case EXPRS_TERM_POS:	/* + (unary term in this case) */
 		printf("Operator: Unary +\n");
 		break;
-	case EXPRS_TERM_MINUS:	/* - (unary term in this case) */
+	case EXPRS_TERM_NEG:	/* - (unary term in this case) */
 		printf("Operator: Unary -\n");
 		break;
 	case EXPRS_TERM_HIGH_BYTE: /* high byte */
@@ -99,7 +99,7 @@ static ExprsErrs_t showTerm(ExprsDef_t *exprs, const ExprsTerm_t *term)
 	case EXPRS_TERM_LOW_BYTE:/* low byte */
 		printf("Operator: low byte\n");
 		break;
-	case EXPRS_TERM_XCHG:	/* exchange bytes */
+	case EXPRS_TERM_SWAP:	/* exchange bytes */
 		printf("Operator: exchange bytes\n");
 		break;
 	case EXPRS_TERM_POW:		/* ** */
@@ -108,8 +108,8 @@ static ExprsErrs_t showTerm(ExprsDef_t *exprs, const ExprsTerm_t *term)
 	case EXPRS_TERM_MOD:		/* % */
 	case EXPRS_TERM_ADD:		/* + (binary terms in this case) */
 	case EXPRS_TERM_SUB:		/* - (binary terms in this case) */
-	case EXPRS_TERM_ASL:		/* << */
-	case EXPRS_TERM_ASR:		/* >> */
+	case EXPRS_TERM_SHL:		/* << */
+	case EXPRS_TERM_SHR:		/* >> */
 	case EXPRS_TERM_GT:		/* > */
 	case EXPRS_TERM_GE:		/* >= */
 	case EXPRS_TERM_LT:		/* < */

@@ -276,6 +276,7 @@
 			<F N="libs/lib_exprs.c"/>
 			<F N="libs/lib_hashtbl.c"/>
 			<F N="main.c"/>
+			<F N="libs/mk_operstuff.c"/>
 		</Folder>
 		<Folder
 			Name="Header Files"
@@ -286,9 +287,11 @@
 			<F N="exprs_test_ht.h"/>
 			<F N="exprs_test_nos.h"/>
 			<F N="exprs_test_walk.h"/>
+			<F N="libs/formats.h"/>
 			<F N="libs/lib_btree.h"/>
 			<F N="libs/lib_exprs.h"/>
 			<F N="libs/lib_hashtbl.h"/>
+			<F N="libs/lib_operstuff.h"/>
 		</Folder>
 		<Folder
 			Name="Resource Files"
@@ -302,6 +305,7 @@
 			Name="Other Files"
 			Filters=""
 			GUID="{03C51879-73C8-437C-8609-A5348A9A6B50}">
+			<F N="libs/lib_operstuff.dat"/>
 			<F N="LICENSE"/>
 			<F
 				N="Makefile"

@@ -1,0 +1,109 @@
+; A semi-colon in column 1 signals a comment line for this file and ignored.
+; Except for the comment char, anything other than a 'E' in column 1 will be copied
+; without modification to the output file: (expected to be operstuff.h)
+;
+/*
+    lib_operstuff.h - Part of the lib_exprs samples.
+    Copyright (C) 2025 David Shepperd
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
+/**************************************************************************
+ * @note This file is produced by a separate program called mk_operstuff. *
+ * Any manual edits made to this file will likely be lost during the next *
+ * build. Edit mk_operstuff.c and/or lib_operstuff.dat to make any        *
+ * necessary changes to these lists.                                      *
+ **************************************************************************/
+
+; The following items are separated from one another using commas with
+; any amount of whitespace between them. Whitespace in the comment string
+; is copied to output as is.
+;
+; Higher numbered precendence wins. The "Normal" precedence table defines
+; that of a 'C' style expression. The "None" precedence table defines the
+; default macxx expression style where all operators have equal precendence.
+;
+;The following list has to start with 'E' to get the contents loaded into the
+;expected enum and tables.
+;								Precedences
+;Numeric ID				Normal	None	Comment
+EXPRS_TERM_NULL,			20,  	20,		/* (NULL) */
+EXPRS_TERM_SYMBOL,			20,		20,		/* (Symbol) */
+EXPRS_TERM_SYMBOL_COMPLEX, 20,		20,		/* (Complex symbol) */
+EXPRS_TERM_FUNCTION, 		20,		20,		/* (function call; not supported yet) */
+EXPRS_TERM_STRING,			20,		20,		/* (string) */
+EXPRS_TERM_FLOAT,			20,		20,		/* (float) */
+EXPRS_TERM_INTEGER,		20,		20,		/* (integer) */
+EXPRS_TERM_NEG,			18,		18,		/* - (neg) */
+EXPRS_TERM_POS,			18,		18,		/* + (pos) */
+EXPRS_TERM_COM,			18,		18,		/* ~ (comp) */
+EXPRS_TERM_NOT,			18,		18,		/* ! (not) */
+EXPRS_TERM_LOW_BYTE,		16,		18,		/* ^v (low byte) */
+EXPRS_TERM_HIGH_BYTE,		16,		18,		/* ^^ (high byte) */
+EXPRS_TERM_SWAP,			16,		18,		/* ^~ (swap) */
+EXPRS_TERM_POW,			16,		18,		/* ** (power) */
+EXPRS_TERM_MUL,			14,		7,		/* * (mul) */
+EXPRS_TERM_DIV,			14,		7,		/* / (div) */
+EXPRS_TERM_MOD,			14,		7,		/* % (mod) */
+EXPRS_TERM_ADD,			12,		7,		/* + (add) */
+EXPRS_TERM_SUB,			12,		7,		/* - (sub) */
+EXPRS_TERM_SHL,			10,		7,		/* << (shl) */
+EXPRS_TERM_SHR,			10,		7,		/* >> (shr) */
+EXPRS_TERM_GT,				8,		7,		/* > (gt) */
+EXPRS_TERM_GE,				8,		7,		/* >= (ge) */
+EXPRS_TERM_LT,				8,		7,		/* < (lt) */
+EXPRS_TERM_LE,				8,		7,		/* <= (le) */
+EXPRS_TERM_EQ,				8,		7,		/* == (eq) */
+EXPRS_TERM_NE,				8,		7,		/* != (ne) */
+EXPRS_TERM_AND,			6,		7,		/* & (and) */
+EXPRS_TERM_XOR,		 	5,		7,		/* ^ (xor) */
+EXPRS_TERM_OR,				4,		7,		/* | (or) */
+EXPRS_TERM_LAND,			3,		7,		/* && (land) */
+EXPRS_TERM_LOR,			2,		7,		/* || (lor) */
+EXPRS_TERM_ASSIGN,			0,		0,		/* = (assign) */
+;
+;
+; Error definitions and descriptions. The following has to begin with a 'B,' to get them loaded
+; into the expected enum and struct.
+;
+B, EXPR_TERM_GOOD,			"Success"
+B, EXPR_TERM_END,			"End of expression"
+B, EXPR_TERM_BAD_NO_STRING_TERM,	"Not a string term"
+B, EXPR_TERM_BAD_STRING_TOO_LONG,	"String too long"
+B, EXPR_TERM_BAD_STRINGS_NOT_SUPPORTED,"Function not supported"
+B, EXPR_TERM_BAD_SYMBOL_SYNTAX,	"Bad symbol syntax"
+B, EXPR_TERM_BAD_SYMBOL_TOO_LONG,	"Symbol name too long"
+B, EXPR_TERM_BAD_NUMBER,		"Bad number syntax"
+B, EXPR_TERM_BAD_UNARY,		"Bad unary"
+B, EXPR_TERM_BAD_OPER,			"Undefined operator"
+B, EXPR_TERM_BAD_SYNTAX,		"Unrecognized syntax"
+B, EXPR_TERM_BAD_TOO_MANY_TERMS,	"Too many terms"
+B, EXPR_TERM_BAD_TOO_FEW_TERMS,	"Too few terms"
+B, EXPR_TERM_BAD_NO_TERMS,		"No terms found"
+B, EXPR_TERM_BAD_NO_CLOSE,		"No expression close"
+B, EXPR_TERM_BAD_UNSUPPORTED,		"Unsupported function"
+B, EXPR_TERM_BAD_DIV_BY_0,		"Divide by 0"
+B, EXPR_TERM_BAD_PARAMETER,		"Invalid parameter value"
+B, EXPR_TERM_BAD_UNDEFINED,		"Undefined expression context"
+B, EXPR_TERM_BAD_OUT_OF_MEMORY,	"Ran out of memory"
+B, EXPR_TERM_BAD_UNDEFINED_SYMBOL,	"Undefined symbol"
+B, EXPR_TERM_BAD_NO_SYMBOLS,		"No symbol handler"
+B, EXPR_TERM_BAD_SYMBOL_TABLE_FULL, "Symbol table is full"
+B, EXPR_TERM_BAD_LVALUE,			"lvalue is not a symbol"
+B, EXPR_TERM_BAD_RVALUE,			"result of expression is not an integer or float or string"
+B, EXPR_TERM_BAD_NOLOCK,			"Failed to lock pthread mutex"
+B, EXPR_TERM_BAD_NOUNLOCK,			"Failed to unlock pthread mutex"
+
+

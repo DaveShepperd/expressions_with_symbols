@@ -21,21 +21,25 @@ enum
 	OPT_HASH_SIZE,
 	OPT_INCS,
 	OPT_TEST,
+	OPT_EXPRS,
 	OPT_VERBOSE,
 	OPT_FLAGS,
 	OPT_RADIX,
 	OPT_WALK,
+	OPT_HELP,
 	OPT_MAX
 };
 
 static struct option long_options[] =
 {
                    {"btree",      required_argument, 0, OPT_BTREE },
+				   {"expr",       required_argument, 0, OPT_EXPRS },
 				   {"incs",       required_argument, 0, OPT_INCS },
 				   {"flags",      required_argument, 0, OPT_FLAGS },
 				   {"radix",      required_argument, 0, OPT_RADIX },
                    {"hash_size",  required_argument, 0, OPT_HASH_SIZE },
-				   {"test",		  no_argument,		0, OPT_TEST },
+				   {"help",		  no_argument,       0, OPT_HELP },
+				   {"test",		  no_argument,		 0, OPT_TEST },
 				   {"verbose",    no_argument,       0, OPT_VERBOSE },
 				   {"walk",       no_argument,       0, OPT_WALK },
 				   {0,         0,                 0,  0 }
@@ -63,14 +67,21 @@ static const char FlagsDescription[] =
 "0x00020000	= Local symbols are expressed via decimalNumber$ (cannot be combined with POST_DOLLAR_HEX)\n"
 "0x00040000	= Symbols can begin with leading period (.) (forces flag 0x2 = NO_FLOAT)\n"
 "0x00080000	= Symbols can begin with leading dollar sign ($) (cannot be combined with flag 0x20)\n"
+"0x00100000	= Operands can have a length qualifier\n"
+"0x00200000	= A unary '%' means term is a register\n"
+"0x00400000	= Term cannot be double plain\n"
+"0x00800000	= Open delimiter ends expression\n"
+"0x01000000	= Close delimiter ends expression\n"
 ;
 
 static int helpEm(const char *ourName)
 {
-	fprintf(stderr, "Usage: %s [-b num] [-s hashSize] [-tv] expression\n",
+	fprintf(stderr, "Usage: %s [-b num][-e exp][-i incs][-f flags][-r radix][-s hashSize][-htvw] expression\n",
 		   ourName);
 	fprintf(stderr,"Where:\n"
 			"-b num   [or --btree=num]    test using btree symbols. num=maxSize.\n"
+			"-e expr  [or --expr=expr]    pass expression (use if expression has leading -)\n"
+			"-h       [or --help]         this text\n"
 			"-i incs  [or --incs=num]     set all the pool increments\n"
 			"-f flags [or --flags=flgs]   set flag bits\n"
 			"-r radix [or --radix=rad]    set the default radix (also sets 0x1 in flags)\n"
@@ -96,9 +107,10 @@ int main(int argc, char *argv[])
 	int walk=0;
 	unsigned long flags=0;
 	char *endp;
+	const char *exprs=NULL;
 	
 	opt_index = 0;
-	while ((opt = getopt_long_only(argc, argv, "b:i:f:r:s:tvw", long_options, &opt_index)) != -1)
+	while ((opt = getopt_long_only(argc, argv, "b:e:hi:f:r:s:tvw", long_options, &opt_index)) != -1)
 	{
 		switch (opt)
 		{
@@ -109,6 +121,10 @@ int main(int argc, char *argv[])
 		case OPT_INCS:
 		case 'i':
 			incs = atoi(optarg);
+			break;
+		case OPT_EXPRS:
+		case 'e':
+			exprs = optarg;
 			break;
 		case OPT_FLAGS:
 		case 'f':
@@ -147,8 +163,13 @@ int main(int argc, char *argv[])
 		case OPT_WALK:
 			walk = 1;
 			break;
-		default: /* '?' */
+		case '?':
+			printf("Error: getopt(): returned ?. argc=%d, optind=%d (%s)\n", argc, optind, argv[optind] );
+		case 'h':
+		case OPT_HELP:
 			return helpEm(argv[0]);
+		default: /* '?' */
+			break;
 		}
 	}
 	if ( verbose )
@@ -168,10 +189,10 @@ int main(int argc, char *argv[])
 	{
 		return exprsTest(verbose);
 	}
-	if ( optind < argc )
+	if ( exprs || optind < argc )
 	{
-		char *exprs;
-		exprs = argv[optind];
+		if ( !exprs )
+			exprs = argv[optind];
 		if ( btree_size )
 			return exprsTestBtree(incs, btree_size, exprs, flags, radix, verbose);
 		if ( tblSize )

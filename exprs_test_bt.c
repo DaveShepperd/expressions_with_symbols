@@ -268,7 +268,8 @@ static ExprsErrs_t getBtreeSym(void *userArg, const char *name, ExprsSymTerm_t *
 	{
 		dst->termType = found->value.termType;
 		dst->flags = 0;
-		dst->symbolExtra = (const void *)name;
+		dst->user1 = name;
+		dst->user2 = found->value.user2;
 		switch (found->value.termType)
 		{
 		case EXPRS_SYM_TERM_INTEGER:
@@ -281,7 +282,6 @@ static ExprsErrs_t getBtreeSym(void *userArg, const char *name, ExprsSymTerm_t *
 			dst->value.string = found->value.value.string;
 			break;
 		case EXPRS_SYM_TERM_COMPLEX:
-			dst->value.complex = found->value.value.complex;
 			break;
 		default:
 			fprintf(stderr,"getBtreeSym(): Undefined termtype %d\n", found->value.termType);
@@ -290,8 +290,9 @@ static ExprsErrs_t getBtreeSym(void *userArg, const char *name, ExprsSymTerm_t *
 	}
 	dst->termType = EXPRS_SYM_TERM_NULL;
 	dst->flags = 0;
-	dst->symbolExtra = NULL;
 	dst->value.f64 = 0;
+	dst->user1 = NULL;
+	dst->user2 = NULL;
 	return EXPR_TERM_BAD_UNDEFINED_SYMBOL;
 }
 
