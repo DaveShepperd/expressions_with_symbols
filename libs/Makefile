@@ -20,7 +20,7 @@ default: $(COMMON).a
 
 clean:
 	echo "    Cleaning ..."
-	rm -rf $(TARGET1).o $(TARGET2).o $(TARGET3).o $(COMMON).a mk_operstuff mk_operstuff.o Debug/ Release/
+	rm -rf $(TARGET1).o $(TARGET2).o $(TARGET3).o $(COMMON).a mk_operstuff mk_operstuff.o lib_operstuff.h Debug/ Release/
 
 $(COMMON).a: $(TARGET1).o $(TARGET2).o $(TARGET3).o
 	echo "    Making $@ ..."
